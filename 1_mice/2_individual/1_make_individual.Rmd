@@ -1,7 +1,7 @@
 ---
 params:
-  sample_name: "2022_06"
-title: "Individual dataset"
+  sample_name: "2022_23"
+title: "Mice"
 subtitle: "Sample `r params$sample_name`"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
@@ -83,7 +83,7 @@ knitr::opts_chunk$set(echo = TRUE, # display code
 
 The goal of this script is to generate a Seurat object for sample `r params$sample_name`.
 
-* removal of cells with less than 600 genes or less than 6 log UMI
+* removal of cells based on quality control metrics
 * normalization with `LogNormalize`, then doublets detection using `scran hybrid` and `scDblFinder` method, and doublet cells removal
 * normalization with `LogNormalize`, for only the remaining cells
 * cell cycle and cell type annotation
@@ -95,6 +95,8 @@ The goal of this script is to generate a Seurat object for sample `r params$samp
 library(dplyr)
 library(patchwork)
 library(ggplot2)
+
+.libPaths()
 ```
 
 
@@ -103,34 +105,34 @@ library(ggplot2)
 In this section, we set the global settings of the analysis. We will store data there :
 
 ```{r out_dir}
-out_dir = "/home/aurelien/Documents/Audrey/git_analysis/mpnst_project/2_individual_datasets/"
+out_dir = "."
 ```
 
 We load the parameters :
 
 ```{r get_param}
-sample_name = params$sample_name # "2022_23"
+sample_name = params$sample_name
 # sample_name = "2022_23"
 ```
 
 Input count matrix is there :
 
 ```{r count_matrix_dir}
-count_matrix_dir = paste0(out_dir, "/input/", sample_name)
+count_matrix_dir = paste0(out_dir, "/../0_input/", sample_name)
 ```
 
 
 We load the markers and specific colors for each cell type :
 
 ```{r cell_markers}
-cell_markers = readRDS(paste0(out_dir, "/../1_metadata/datasets_cell_markers.rds"))
+cell_markers = readRDS(paste0(out_dir, "/../1_metadata/mice_cell_markers.rds"))
 lengths(cell_markers)
 ```
 
 Here are custom colors for each cell type :
 
 ```{r color_markers, fig.width = 12, fig.height = 1, class.source = "fold-hide"}
-color_markers = readRDS(paste0(out_dir, "/../1_metadata/datasets_color_markers.rds"))
+color_markers = readRDS(paste0(out_dir, "/../1_metadata/mice_color_markers.rds"))
 
 data.frame(cell_type = names(color_markers),
            color = unlist(color_markers)) %>%
@@ -149,7 +151,7 @@ data.frame(cell_type = names(color_markers),
 We load markers to display on the dotplot :
 
 ```{r dotplot_markers}
-dotplot_markers = readRDS(paste0(out_dir, "/../1_metadata/datasets_dotplot_markers.rds"))
+dotplot_markers = readRDS(paste0(out_dir, "/../1_metadata/mice_dotplot_markers.rds"))
 dotplot_markers
 ```
 
@@ -157,19 +159,19 @@ dotplot_markers
 We load metadata for this sample :
 
 ```{r sample_info}
-sample_info = readRDS(paste0(out_dir, "/../1_metadata/datasets_sample_info.rds"))
+sample_info = readRDS(paste0(out_dir, "/../1_metadata/mice_sample_info.rds"))
 sample_info %>%
   dplyr::filter(project_name == sample_name)
 ```
 
 
-These is a parameter for different functions :
+These are settings for functions :
 
 ```{r global_settings}
 cl = aquarius::create_parallel_instance(nthreads = 3L)
 cut_log_nCount_RNA = 6
 cut_nFeature_RNA = 600
-cut_percent.mt = 20
+cut_percent.mt = 50
 cut_percent.rb = 30
 ```
 
@@ -177,14 +179,14 @@ cut_percent.rb = 30
 
 In this section, we load the raw count matrix. Then, we applied an empty droplets filtering.
 
-```{r combine_datasets, time_it = TRUE}
+```{r load_count_matrix, time_it = TRUE}
 sobj = aquarius::load_sc_data(data_path = count_matrix_dir,
                               sample_name = sample_name,
                               my_seed = 1337L)
 sobj
 ```
 
-We set an upper bound to 20,000 cells. Remaining cells are out of cells RNA embed in droplets :
+We set an upper bound to 20,000 cells. Remaining cells correspond to ambiant RNA.
 
 ```{r subset_nb_UMI}
 if (ncol(sobj) > 20000) {
@@ -397,7 +399,7 @@ patchwork::wrap_plots(plot_list, nrow = 1)
 
 In this section, we look at the number of genes expressed by each cell, the number of UMI, the percentage of mitochondrial genes expressed, and the percentage of ribosomal genes expressed. Then, without taking into account the cells expressing low number of genes or have low number of UMI, we identify doublet cells.
 
-We compute four quality metrics :
+We compute quality metrics :
 
 ```{r qc_metrics}
 sobj = Seurat::PercentageFeatureSet(sobj, pattern = "^mt", col.name = "percent.mt")
@@ -862,7 +864,7 @@ sobj$fail = NULL
 patchwork::wrap_plots(plot_list, nrow = 1)
 ```
 
-What is the composition of doublet cells ? We could use deconvolution. We will just look at score for each cell type.
+What is the composition of doublet cells ? We just look at score for each cell type.
 
 ```{r doublets_composition, class.source = "fold-hide"}
 sobj$orig.ident.doublets = case_when(is.na(sobj$doublets_consensus.class) ~ "bad quality",
@@ -930,10 +932,10 @@ patchwork::wrap_plots(plot_list, ncol = 4) +
 
 ## Save
 
-We save this object before filtering :
+We could save this object before filtering (remove `eval = FALSE`) :
 
-```{r save_sobj_unfiltered_annotated}
-saveRDS(sobj, paste0(out_dir, "/", sample_name, "_sobj_unfiltered.rds"))
+```{r save_sobj_unfiltered_annotated, eval = FALSE}
+saveRDS(sobj, paste0(out_dir, "/datasets/", sample_name, "_sobj_unfiltered.rds"))
 ```
 
 
@@ -943,28 +945,23 @@ We remove :
 
 * cells with a number of UMI lower than `r cut_log_nCount_RNA`
 * cells expressing a number of genes lower than `r cut_nFeature_RNA`
-* doublet cells detected with both method (**scDblFinder** and **scds-hybrid**)
+* cells having more than `r cut_percent.mt` \% of UMI related to mitochondrial genes
+* cells having more than `r cut_percent.rb` \% of UMI related to ribosomal genes
+* doublet cells detected with both methods (union of **scDblFinder** and **scds-hybrid**)
 
 
 ```{r filter_cells}
 sobj = subset(sobj, invert = TRUE,
               cells = unique(c(fail_log_nCount_RNA, fail_nFeature_RNA,
+                               fail_percent.mt, fail_percent.rb,
                                fail_doublets_consensus)))
 sobj
 ```
 
-
-```{r save_filtering_metrics, eval = FALSE, echo = FALSE}
-save(fail_doublets_consensus, fail_doublets_scDblFinder, fail_doublets_hybrid,
-     fail_percent.mt, fail_log_nCount_RNA, fail_nFeature_RNA,
-     cut_percent.mt, cut_log_nCount_RNA, cut_nFeature_RNA,
-     file = paste0(out_dir, "/", sample_name, "_filtered_cells.rda"))
-```
-
 ```{r clean_filter, echo = FALSE}
 rm(fail_doublets_consensus, fail_doublets_scDblFinder, fail_doublets_hybrid,
-   fail_percent.mt, fail_log_nCount_RNA, fail_nFeature_RNA,
-   cut_percent.mt, cut_log_nCount_RNA, cut_nFeature_RNA)
+   fail_percent.mt, fail_percent.rb, fail_log_nCount_RNA, fail_nFeature_RNA,
+   cut_percent.mt, cut_percent.rb, cut_log_nCount_RNA, cut_nFeature_RNA)
 ```
 
 
@@ -1272,7 +1269,7 @@ patchwork::wrap_plots(plot_list, ncol = 4)
 We save the annotated and filtered Seurat object :
 
 ```{r save_sobj_filtered_annotated}
-saveRDS(sobj, file = paste0(out_dir, "/", sample_name, "_sobj_filtered.rds"))
+saveRDS(sobj, file = paste0(out_dir, "/datasets/", sample_name, "_sobj_filtered.rds"))
 ```
 
 
