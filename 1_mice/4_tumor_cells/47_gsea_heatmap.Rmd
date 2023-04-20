@@ -1,0 +1,523 @@
+---
+title: "Mice"
+subtitle: "Tumor cells GSEA heatmap"
+author: "Audrey"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    code_folding: show
+    code_download: true
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+<!-- Automatically computes and prints in the output the running time for any code chunk -->
+```{r, echo=FALSE}
+# https://github.com/rstudio/rmarkdown/issues/1453
+hooks = knitr::knit_hooks$get()
+hook_foldable = function(type) {
+  force(type)
+  function(x, options) {
+    res = hooks[[type]](x, options)
+    
+    if (isFALSE(options[[paste0("fold_", type)]])) return(res)
+    
+    paste0(
+      "<details><summary>", "show", "</summary>\n\n",
+      res,
+      "\n\n</details>"
+    )
+  }
+}
+knitr::knit_hooks$set(
+  output = hook_foldable("output"),
+  plot = hook_foldable("plot"),
+  time_it = local({
+    now = NULL
+    function(before, options) {
+      if (options$time_it) {
+        if (before) {
+          now <<- Sys.time()
+        } else {
+          res = difftime(Sys.time(), now, units = "secs")
+          paste("(Time to run :", round(res, digits = 2), "s)")
+        }
+      }
+    }
+  })
+)
+```
+
+<!-- Set default parameters for all chunks -->
+```{r, setup, include = FALSE}
+set.seed(1337L)
+knitr::opts_chunk$set(echo = TRUE, # display code
+                      # display chunk output
+                      message = FALSE,
+                      warning = FALSE,
+                      fold_output = FALSE, # usefull for sessionInfo()
+                      fold_plot = FALSE,
+                      
+                      # figure settings
+                      fig.align = 'center',
+                      fig.width = 20,
+                      fig.height = 15,
+                      
+                      # something about seed, chunk and Rmarkdown compilation
+                      # https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+                      # cache = TRUE,
+                      cache.lazy = FALSE, 
+                      
+                      # add runtime after chunk
+                      time_it = FALSE)
+```
+
+
+In the previous file, we explored gene sets enrichment in tumor cells. In this file, we attribute a score to each cell, for each "significant" gene set, and we visualize the result on a heatmap.
+
+
+```{r library}
+library(dplyr)
+library(org.Mm.eg.db)
+library(ComplexHeatmap)
+library(ggplot2)
+
+.libPaths()
+```
+
+# Preparation
+
+In this section, we set the global settings of the analysis. Data are stored there :
+
+```{r out_dir}
+out_dir = "."
+n_threads = 1 # for AUCell::AUCell_buildRankings
+```
+
+Note : Not more than nCores = 2 because it will reaches the maximum of memory and makes RStudio crash :(
+
+We load the sample information :
+
+```{r custom_palette_sample, fig.width = 8, fig.height = 8}
+sample_info = readRDS(paste0(out_dir, "/../1_metadata/mice_sample_info.rds"))
+project_names_oi = sample_info$project_name
+
+graphics::pie(rep(1, nrow(sample_info)),
+              col = sample_info$color,
+              labels = sample_info$project_name)
+```
+
+We load the Seurat object :
+
+```{r load_sobj}
+save_name = "mice_tumor_cells_subset"
+sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj_traj_slingshot_FE.rds"))
+sobj
+```
+
+We load the list containing all enrichment results :
+
+```{r load_results}
+list_results = readRDS(paste0(out_dir, "/", save_name, "_list_results.rds"))
+
+names(list_results)
+```
+
+We get signatures from MSigDB :
+
+```{r msigdb_sets}
+gene_sets = msigdbr::msigdbr(species = "Mus musculus") %>%
+  dplyr::filter(gs_cat %in% c("H", "C2", "C5")) %>%
+  dplyr::filter(gs_subcat %in% c("", "GO:BP", "GO:MF", "GO:CC", "CP:KEGG", "CP:BIOCARTA",
+                                 "CP:WIKIPATHWAYS", "CP:REACTOME", "CP:PID")) %>%
+  dplyr::select(gs_cat, gs_subcat, gs_name, ensembl_gene, gene_symbol)
+
+head(gene_sets)
+
+gene_sets %>%
+  dplyr::select(gs_subcat, gs_cat, gs_name) %>%
+  dplyr::distinct() %>%
+  dplyr::select(gs_subcat, gs_cat) %>%
+  table()
+```
+
+# Heatmap of gene sets expression score
+
+## Gene sets of interest
+
+We keep maximum 200 gene sets significant by GSEA in each comparison.
+
+```{r choosen_gs_name_heatmap}
+choosen_gs_name = lapply(names(list_results), FUN = function(comparison) {
+  comparison = list_results[[comparison]]
+  
+  gs_names_up = comparison$gsea_up@result %>%
+    dplyr::filter(pvalue < 0.05) %>%
+    dplyr::top_n(., n = 100, wt = abs(NES)) %>%
+    dplyr::pull(ID)
+  
+  gs_names_down = comparison$gsea_down@result %>%
+    dplyr::filter(pvalue < 0.05) %>%
+    dplyr::top_n(., n = 100, wt = abs(NES)) %>%
+    dplyr::pull(ID)
+  
+  gs_names = c(gs_names_up, gs_names_down)
+  return(gs_names)
+}) %>% unlist() %>% unique()
+
+length(choosen_gs_name)
+```
+
+How many in each category ?
+
+```{r bycategory}
+length(grep(choosen_gs_name, pattern = "^HALLMARK"))
+length(grep(choosen_gs_name, pattern = "^GOBP"))
+length(grep(choosen_gs_name, pattern = "^GOCC"))
+length(grep(choosen_gs_name, pattern = "^GOMF"))
+length(grep(choosen_gs_name, pattern = "^REAC"))
+length(grep(choosen_gs_name, pattern = "^KEGG"))
+length(grep(choosen_gs_name, pattern = "^BIOC"))
+length(grep(choosen_gs_name, pattern = "^PID"))
+length(grep(choosen_gs_name, pattern = "^WP"))
+```
+
+What are the genes in each gene set ?
+
+```{r gene_sets_list}
+gene_sets_list = lapply(choosen_gs_name, FUN = function(my_gs_name) {
+  gene_sets %>%
+    dplyr::filter(gs_name == my_gs_name) %>%
+    dplyr::pull(gene_symbol)
+})
+names(gene_sets_list) = choosen_gs_name
+```
+
+We can make one heatmap for each category. The only thing which change is the "expression matrix". So, we can prepare all the annotation around the heatmap.
+
+```{r heatmap_annotation, class.source = "fold-hide"}
+## Cell annotation
+cell_annot_1 = "small_clusters"
+cell_annot_1_levels = levels(sobj@meta.data[, cell_annot_1])
+sobj@meta.data[, cell_annot_1] = factor(sobj@meta.data[, cell_annot_1],
+                                        levels = cell_annot_1_levels)
+
+cell_annot_2 = "kmeans_group"
+cell_annot_2_levels = c("group 1", "group 2", "group 3")
+sobj@meta.data[, cell_annot_2] = factor(sobj@meta.data[, cell_annot_2],
+                                        levels = cell_annot_2_levels)
+
+## Colors
+list_colors = list()
+
+list_colors[["clusters"]] = aquarius::c30_palette[c(1:length(unique(sobj@meta.data[, cell_annot_1])))]
+names(list_colors[["clusters"]]) = levels(sobj@meta.data[, cell_annot_1])
+
+list_colors[["groups"]] = aquarius::c30_palette[c(1:length(unique(sobj@meta.data[, cell_annot_2])))]
+names(list_colors[["groups"]]) = levels(sobj@meta.data[, cell_annot_2])
+
+list_colors[["expression"]] = rev(RColorBrewer::brewer.pal(name = "RdBu", n = 9))
+list_colors[["pseudotime"]] = circlize::colorRamp2(breaks = seq(min(sobj$pseudotime),
+                                                                max(sobj$pseudotime),
+                                                                length.out = 9),
+                                                   colors = viridis::viridis(9))
+list_colors[["sample_type"]] = c(flfl_pNF = "blue", flfl_dyNF = "green", flfl_MPNST = "brown",
+                                 flmn_dyNF = "olivedrab1", flmn_MPNST = "sienna")
+
+# list_colors[["cell_cycle_phase"]] = aquarius::gg_color_hue(3)
+# names(list_colors[["cell_cycle_phase"]]) = c("G1", "G2M", "S")
+list_colors[["percent_mito"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$percent.mt),
+                                                                  to = max(sobj$percent.mt),
+                                                                  length.out = 9),
+                                                     colors = RColorBrewer::brewer.pal(name = "Greys", n = 9))
+list_colors[["percent_ribo"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$percent.rb),
+                                                                  to = max(sobj$percent.rb),
+                                                                  length.out = 9),
+                                                     colors = RColorBrewer::brewer.pal(name = "Greys", n = 9))
+list_colors[["nFeature_RNA"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$nFeature_RNA),
+                                                                  to = max(sobj$nFeature_RNA),
+                                                                  length.out = 9),
+                                                     colors = RColorBrewer::brewer.pal(name = "Greys", n = 9))
+# list_colors[["log_nCount_RNA"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$log_nCount_RNA),
+#                                                                     to = max(sobj$log_nCount_RNA),
+#                                                                     length.out = 9),
+#                                                        colors = RColorBrewer::brewer.pal(name = "Greys", n = 9))
+
+# Cells order
+column_order = order(sobj$pseudotime)
+
+# Heatmap
+ha_top = HeatmapAnnotation(pseudotime = sobj$pseudotime,
+                           groups = sobj@meta.data[, cell_annot_2],
+                           clusters = sobj@meta.data[, cell_annot_1],
+                           col = list(pseudotime = list_colors[["pseudotime"]],
+                                      groups = list_colors[["groups"]],
+                                      clusters = list_colors[["clusters"]]))
+
+ha_bottom = HeatmapAnnotation(percent_mito = sobj$percent.mt,
+                              percent_ribo = sobj$percent.rb,
+                              nFeature_RNA = sobj$nFeature_RNA,
+                              # log_nCount_RNA = sobj$log_nCount_RNA,
+                              # cell_cycle_phase = sobj$Seurat.Phase,
+                              sample_type = factor(sobj$sample_type,
+                                                   levels = names(list_colors[["sample_type"]])),
+                              col = list(sample_type = list_colors[["sample_type"]],
+                                         percent_mito = list_colors[["percent_mito"]],
+                                         percent_ribo = list_colors[["percent_ribo"]],
+                                         nFeature_RNA = list_colors[["nFeature_RNA"]]#,
+                                         # log_nCount_RNA = list_colors[["log_nCount_RNA"]],
+                                         # cell_cycle_phase = list_colors[["cell_cycle_phase"]]
+                              ))
+
+# Function to make the heatmap from the expression matrix
+make_ht = function(mat_expr) {
+  ht = Heatmap(as.matrix(mat_expr),
+               heatmap_legend_param = list(title = "score", at = c(0, 1), 
+                                           labels = c("low", "high")),
+               col = list_colors[["expression"]],
+               top_annotation = ha_top, bottom_annotation = ha_bottom,
+               show_column_names = FALSE,
+               column_order = column_order,
+               column_gap = unit(2, "mm"),
+               cluster_rows = FALSE,
+               row_title = NULL,
+               row_names_gp = grid::gpar(fontsize = 8, fontface = "plain"),
+               row_names_max_width = ComplexHeatmap::max_text_width(rownames(mat_expr), 
+                                                                    gp = gpar(fontsize = 8)),
+               use_raster = FALSE,
+               show_heatmap_legend = TRUE,
+               border = TRUE)
+  return(ht)
+}
+```
+
+## Compute scores for each gene sets
+
+We will compute scores for each gene set with `AUCell`. To do so, we compute a gene ranking, for all cells and all genes in the dataset.
+
+```{r aucell_rank}
+gene_expression_matrix = sobj@assays[["RNA"]]@data
+aucell_rank = AUCell::AUCell_buildRankings(exprMat = gene_expression_matrix,
+                                           nCores = n_threads, plotStats = FALSE)
+```
+
+Compute scores :
+
+```{r score_gene_sets}
+df_scores = AUCell::AUCell_calcAUC(geneSets = gene_sets_list,
+                                   rankings = aucell_rank,
+                                   nCores = n_threads)
+rownames(df_scores) = names(gene_sets_list)
+df_scores = AUCell::getAUC(df_scores) # AUCell object to scores matrix (features x cells)
+```
+
+
+## Identify a gene set order
+
+We identify an order to represent gene sets along pseudotime.
+
+```{r heatmaps_order, time_it = TRUE}
+sobj$cell_CB = colnames(sobj)
+
+## Add a pseudotime column to df_scores
+df_features = as.data.frame(t(df_scores)) # cells x features
+df_features$cell_CB = rownames(df_features)
+df_features = dplyr::left_join(x = df_features,
+                               y = sobj@meta.data[, c("cell_CB", "pseudotime")],
+                               by = "cell_CB")
+df_features$cell_CB = NULL
+
+## Identify order
+features_order = aquarius::find_features_order(df_features)
+```
+
+
+## Build the matrix
+
+We prepare the matrix to build the heatmap without row neither column ordering. To do so :
+
+* Cells are ordered by pseudotime
+* Features are ordered as previously defined
+* Feature score are normalized between 0 and 1 for each feature, to have blue-to-red scale for each row (feature) in the heatmap
+
+```{r mat_expression, class.source = "fold-hide", , fig.width = 15, fig.height = 20}
+features_order = features_order[features_order %in% rownames(df_scores)]
+mat_expression = df_scores[features_order, ]
+mat_expression = Matrix::t(mat_expression)
+mat_expression = dynutils::scale_quantile(mat_expression) # between 0 and 1
+mat_expression = Matrix::t(mat_expression)
+dim(mat_expression)
+```
+
+
+## Draw heatmaps
+
+We have a big amount of gene sets, so we split into categories.
+
+### Hallmark
+
+```{r heatmap_hallmark, class.source = "fold-hide", fig.width = 15, fig.height = 15}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^HALLMARK", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+
+### GO : Biological Processes
+
+```{r heatmap_gobp, class.source = "fold-hide", fig.width = 15, fig.height = 45}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^GOBP", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+
+### GO : Molecular Functions
+
+```{r heatmap_gomf, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^GOMF", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+
+### GO : Cellular Components
+
+```{r heatmap_gocc, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^GOCC", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+
+### KEGG Pathways
+
+```{r heatmap_kegg, class.source = "fold-hide", fig.width = 15, fig.height = 30}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^KEGG", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+### BioCarta
+
+```{r heatmap_biocarta, class.source = "fold-hide", fig.width = 15, fig.height = 30}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^BIOCARTA", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+### Wiki Pathways
+
+```{r heatmap_wp, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^WP", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+
+### Reactome
+
+```{r heatmap_reactome, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^REACTOME", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+
+### Pathways Interaction (PID)
+
+```{r heatmap_pid, class.source = "fold-hide", fig.width = 15, fig.height = 30}
+features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
+                                                                      pattern = "^PID", value = TRUE))]
+sub_mat_expression = mat_expression[features_order_subset, ]
+ht = make_ht(sub_mat_expression)
+
+ComplexHeatmap::draw(ht,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+
+We save the dataframe containing score for each gene set :
+
+```{r save_df_scores}
+saveRDS(df_scores, file = paste0(out_dir, "/", save_name, "_df_scores.rds"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
