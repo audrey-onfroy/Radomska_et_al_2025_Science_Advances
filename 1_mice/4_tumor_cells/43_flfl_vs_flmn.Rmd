@@ -1,6 +1,6 @@
 ---
-title: "MPNST project"
-subtitle: "Zoom in mice tumor cells"
+title: "Mice"
+subtitle: "Impact of TME heterozygosity"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -11,11 +11,6 @@ output:
     toc_float: true
     number_sections: false
 ---
-
-<style>
-body {
-text-align: justify}
-</style>
 
 <style>
 body {
@@ -101,7 +96,7 @@ library(org.Mm.eg.db)
 In this section, we set the global settings of the analysis. We will store data there :
 
 ```{r out_dir}
-save_name = "mice_tumor_cells"
+save_name = "mice_tumor_cells_subset"
 out_dir = "."
 ```
 
@@ -133,8 +128,6 @@ name2D = "mnn_41_tsne"
 We change clustering and visualize clusters :
 
 ```{r clustering, fig.width = 6, fig.height = 4}
-sobj = Seurat::FindClusters(sobj, resolution = 1.5, reduction = "mnn")
-
 Seurat::DimPlot(sobj, reduction = name2D, label = TRUE) +
   Seurat::NoAxes() +
   ggplot2::theme(aspect.ratio = 1)
@@ -160,7 +153,7 @@ patchwork::wrap_plots(plot_list, nrow = 3) +
 
 We represent the projection split by genotype, and colored by sample of origin :
 
-```{r plot_split_genotype, fig.width = 12, fig.height = 9}
+```{r plot_split_genotype, fig.width = 10, fig.height = 7}
 plot_list = aquarius::plot_split_dimred(sobj,
                                         reduction = name2D,
                                         split_by = "genotype",
@@ -191,6 +184,32 @@ plot_list = lapply(c("Sox10", "Birc5", "Sox9"), FUN = function(one_gene) {
 patchwork::wrap_plots(plot_list, nrow = 1)
 ```
 
+# Annotation preparation
+
+In this section, we prepare the gene annotation. Gene annotation is stored in the object :
+
+```{r gene_corresp}
+gene_corresp = sobj@assays[["RNA"]]@meta.features[, c("gene_name", "Ensembl_ID")]
+names(gene_corresp) = c("NAME", "ID")
+
+head(gene_corresp)
+```
+
+
+We get signatures from MSigDB :
+
+```{r msigdb_sets}
+gene_sets = msigdbr::msigdbr(species = "Mus musculus") %>%
+  dplyr::filter(gs_cat %in% c("H", "C2", "C5")) %>%
+  dplyr::filter(gs_subcat %in% c("", "GO:BP", "GO:MF", "GO:CC", "CP:KEGG", "CP:BIOCARTA",
+                                 "CP:WIKIPATHWAYS", "CP:REACTOME", "CP:PID")) %>%
+  dplyr::select(gs_cat, gs_subcat, gs_name, ensembl_gene, gene_symbol)
+
+head(gene_sets)
+
+table(gene_sets$gs_subcat, gene_sets$gs_cat)
+```
+
 
 # Differential expression
 
@@ -200,27 +219,6 @@ What is the identity of specific clusters ? Results will be stored in the `list_
 list_results = list()
 ```
 
-
-We make over-representation analysis for each group of genes. We load gene sets from MSigDB :
-
-```{r get_gene_sets}
-gene_sets = aquarius::get_gene_sets()
-gene_sets = gene_sets$gene_sets
-
-head(gene_sets)
-```
-
-We get gene name and gene ID correspondence :
-
-```{r gene_corresp}
-
-
-################## sobj meta.features
-gene_corresp = aquarius::get_gene_id(
-  gtf_path = "/mnt/Data/GENOME/mm10_IREScre_tdTomato_eYFP/genes/genes.gtf")
-
-head(gene_corresp)
-```
 
 ## Glial population
 
@@ -233,7 +231,7 @@ clusters_oi = cbind(sobj@meta.data,
   dplyr::group_by(seurat_clusters) %>%
   dplyr::summarise(avg_score = mean(glial)) %>%
   as.data.frame() %>%
-  dplyr::filter(avg_score > 0.85) %>%
+  dplyr::filter(avg_score > 0.75) %>%
   dplyr::pull(seurat_clusters) %>%
   as.character()
 
@@ -301,7 +299,7 @@ We explore enrichment in gene sets :
 ```{r glial_ora_up, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group1, 
                                                             " compared to clusters ",
@@ -334,7 +332,7 @@ We explore enrichment in gene sets :
 ```{r glial_ora_dn, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group2, 
                                                             " compared to clusters ",
@@ -353,11 +351,10 @@ We run a GSEA for each significant gene sets, using the full count matrix. First
 
 ```{r glial_foldchange}
 ranked_gene_list = aquarius::run_foldchange(Seurat::GetAssayData(sobj, assay = "RNA", slot = "counts"),
-                                            group1 = (sobj@active.ident %in% group1),
-                                            group2 = (sobj$seurat_clusters %in% group2))
-names(ranked_gene_list) = ifelse(is.na(gene_corresp[names(ranked_gene_list), "ENTREZID"]),
-                                 yes = names(ranked_gene_list),
-                                 no = gene_corresp[names(ranked_gene_list), "ENTREZID"])
+                                            group1 = colnames(sobj)[sobj@active.ident %in% group1],
+                                            group2 = colnames(sobj)[sobj@active.ident %in% group2])
+names(ranked_gene_list) = gene_corresp[names(ranked_gene_list), "ID"]
+
 head(ranked_gene_list)
 ```
 
@@ -380,7 +377,7 @@ We run GSEA for each gene sets :
 ```{r glial_gsea, fig.width = 12, fig.height = 5}
 gsea_results = aquarius::gsea_run(ranked_gene_list = ranked_gene_list,
                                   gene_sets = gene_sets[gene_sets$gs_name %in%
-                                                          gene_sets_of_interest, c("gs_name", "entrez_gene")],
+                                                          gene_sets_of_interest, c("gs_name", "ensembl_gene")],
                                   GSEA_p_val_thresh = 1)
 
 list_results[[group_name]]$gsea = gsea_results
@@ -395,7 +392,7 @@ gsea_results@result %>%
 
 We look at the GSEA plot for some gene sets :
 
-```{r glial_gsea_plot, fig.width = 12, fig.height = 18}
+```{r glial_gsea_plot, fig.width = 12, fig.height = 23}
 # grep(gene_sets_of_interest, pattern = "RHO", value = TRUE)
 gene_sets_plot = c("GOCC_COLLAGEN_CONTAINING_EXTRACELLULAR_MATRIX",
                    "REACTOME_SIGNALING_BY_ROBO_RECEPTORS",
@@ -409,9 +406,16 @@ gene_sets_plot = c("GOCC_COLLAGEN_CONTAINING_EXTRACELLULAR_MATRIX",
                    "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION")
 
 plot_list = lapply(gene_sets_plot, FUN = function(gene_set) {
+  gs_size = gene_sets %>%
+    dplyr::filter(gs_name == gene_set) %>%
+    dplyr::pull(ensembl_gene) %>%
+    as.character() %>% unique() %>% length()
+  
   p = enrichplot::gseaplot2(gsea_results, geneSetID = gene_set) +
-    ggplot2::labs(title = gene_set) +
-    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+    ggplot2::labs(title = gene_set,
+                  subtitle = paste0(gs_size, " genes")) +
+    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+                   plot.subtitle = element_text(hjust = 0.5))
   return(p)
 })
 patchwork::wrap_plots(plot_list, ncol = 2)
@@ -494,7 +498,7 @@ We explore enrichment in gene sets :
 ```{r mes_ora_up, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group1, 
                                                             " compared to clusters ",
@@ -527,7 +531,7 @@ We explore enrichment in gene sets :
 ```{r mes_ora_dn, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group2, 
                                                             " compared to clusters ",
@@ -546,11 +550,10 @@ We run a GSEA for each significant gene sets, using the full count matrix. First
 
 ```{r mes_foldchange}
 ranked_gene_list = aquarius::run_foldchange(Seurat::GetAssayData(sobj, assay = "RNA", slot = "counts"),
-                                            group1 = (sobj@active.ident %in% group1),
-                                            group2 = (sobj$seurat_clusters %in% group2))
-names(ranked_gene_list) = ifelse(is.na(gene_corresp[names(ranked_gene_list), "ENTREZID"]),
-                                 yes = names(ranked_gene_list),
-                                 no = gene_corresp[names(ranked_gene_list), "ENTREZID"])
+                                            group1 = colnames(sobj)[sobj@active.ident %in% group1],
+                                            group2 = colnames(sobj)[sobj@active.ident %in% group2])
+names(ranked_gene_list) = gene_corresp[names(ranked_gene_list), "ID"]
+
 head(ranked_gene_list)
 ```
 
@@ -573,7 +576,7 @@ We run GSEA for each gene sets :
 ```{r mes_gsea, fig.width = 12, fig.height = 4}
 gsea_results = aquarius::gsea_run(ranked_gene_list = ranked_gene_list,
                                   gene_sets = gene_sets[gene_sets$gs_name %in%
-                                                          gene_sets_of_interest, c("gs_name", "entrez_gene")],
+                                                          gene_sets_of_interest, c("gs_name", "ensembl_gene")],
                                   GSEA_p_val_thresh = 1)
 
 list_results[[group_name]]$gsea = gsea_results
@@ -587,7 +590,7 @@ gsea_results@result %>%
 
 We look at the GSEA plot for some gene sets :
 
-```{r mes_gsea_plot, fig.width = 12, fig.height = 22}
+```{r mes_gsea_plot, fig.width = 12, fig.height = 25}
 # grep(gene_sets_of_interest, pattern = "RHO", value = TRUE)
 gene_sets_plot = c("WP_NEUROINFLAMMATION",
                    "GOCC_COLLAGEN_CONTAINING_EXTRACELLULAR_MATRIX",
@@ -608,9 +611,16 @@ gene_sets_plot = c("WP_NEUROINFLAMMATION",
                    "REACTOME_REGULATION_OF_EXPRESSION_OF_SLITS_AND_ROBOS")
 
 plot_list = lapply(gene_sets_plot, FUN = function(gene_set) {
+  gs_size = gene_sets %>%
+    dplyr::filter(gs_name == gene_set) %>%
+    dplyr::pull(ensembl_gene) %>%
+    as.character() %>% unique() %>% length()
+  
   p = enrichplot::gseaplot2(gsea_results, geneSetID = gene_set) +
-    ggplot2::labs(title = gene_set) +
-    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+    ggplot2::labs(title = gene_set,
+                  subtitle = paste0(gs_size, " genes")) +
+    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+                   plot.subtitle = element_text(hjust = 0.5))
   return(p)
 })
 patchwork::wrap_plots(plot_list, ncol = 2)
@@ -701,7 +711,7 @@ We explore enrichment in gene sets :
 ```{r 2022_23_glial_ora_up, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group1, 
                                                             " compared to clusters ",
@@ -733,7 +743,7 @@ We explore enrichment in gene sets :
 ```{r 2022_23_glial_ora_dn, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group2, 
                                                             " compared to clusters ",
@@ -823,7 +833,7 @@ We explore enrichment in gene sets :
 ```{r 2022_23_mesenchymal_ora_up, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group1, 
                                                             " compared to clusters ",
@@ -855,7 +865,7 @@ We explore enrichment in gene sets :
 ```{r 2022_23_mesenchymal_ora_dn, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
                                         gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
+                                        gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
                                         make_plot = TRUE,
                                         plot_title = paste0("Up-regulated in cluster ", group2, 
                                                             " compared to clusters ",
@@ -864,182 +874,6 @@ enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest)
 enrichr_results$plot +
   ggplot2::theme(axis.text.y = element_text(size = 8))
 ```
-
-### Cluster 12
-
-We compare cluster 12 to other mesenchymal cells, because this cluster is specific to only one sample. We extract mesenchymal clusters :
-
-```{r 12_mesenchymal}
-clusters_oi = cbind(sobj@meta.data,
-                    mesenchymal = Seurat::FetchData(sobj, "Dcn")[, 1]) %>%
-  dplyr::select(seurat_clusters, mesenchymal) %>%
-  dplyr::group_by(seurat_clusters) %>%
-  dplyr::summarise(avg_score = mean(mesenchymal)) %>%
-  as.data.frame() %>%
-  dplyr::filter(avg_score > 0.85) %>%
-  dplyr::pull(seurat_clusters) %>%
-  as.character()
-
-clusters_oi = clusters_oi[clusters_oi != 12]
-clusters_oi
-```
-
-We set specific groups to compare this population between other mesenchymal cells :
-
-```{r 12_mesenchymal_ident}
-Seurat::Idents(sobj) = case_when(
-  sobj$seurat_clusters %in% "12" ~ "A",
-  sobj$seurat_clusters %in% clusters_oi ~ "B")
-
-table(sobj$project_name, Seurat::Idents(sobj))
-```
-
-
-We will compare those groups :
-
-```{r 12_mesenchymal_redblue, fig.width = 5, fig.height = 5}
-group1 = "A"
-group2 = "B"
-group_name = paste0(paste0(group1, collapse = "_"), "_vs_",
-                    paste0(group2, collapse = "_"))
-
-aquarius::plot_red_and_blue(sobj, group1, group2, reduction = name2D)
-```
-
-We identify differentially expressed markers between both groups :
-
-```{r 12_mesenchymal_de, fig.width = 5, fig.height = 5}
-mark = Seurat::FindMarkers(sobj,
-                           ident.1 = group1, ident.2 = group2)
-
-mark %>%
-  dplyr::top_n(n = 20, wt = abs(avg_logFC)) %>%
-  dplyr::arrange(avg_logFC)
-
-mark %>%
-  dplyr::filter(abs(pct.1 - pct.2) > 0.3) %>%
-  arrange(avg_logFC)
-```
-
-We keep only up-regulated genes in this cluster :
-
-```{r 12_mesenchymal_up, fig.width = 5, fig.height = 5}
-genes_of_interest = mark %>%
-  dplyr::filter(p_val_adj < 0.05) %>%
-  dplyr::filter(avg_logFC > 0) %>%
-  dplyr::arrange(-avg_logFC, pct.1 - pct.2)
-
-list_results[[group_name]]$up_genes = genes_of_interest
-
-dim(genes_of_interest)
-
-head(genes_of_interest, n = 20)
-```
-
-
-We explore enrichment in gene sets :
-
-```{r 12_mesenchymal_ora_up, fig.width = 12, fig.height = 8}
-enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
-                                        gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
-                                        make_plot = TRUE,
-                                        plot_title = paste0("Up-regulated in cluster ", group1, 
-                                                            " compared to clusters ",
-                                                            paste0(group2, collapse = ", ")))
-
-enrichr_results$plot +
-  ggplot2::theme(axis.text.y = element_text(size = 8))
-```
-
-
-### Cluster 15
-
-We compare cluster 15 to other mesenchymal cells, because this cluster is specific to only one sample. We extract mesenchymal clusters :
-
-```{r 15_mesenchymal}
-clusters_oi = cbind(sobj@meta.data,
-                    mesenchymal = Seurat::FetchData(sobj, "Dcn")[, 1]) %>%
-  dplyr::select(seurat_clusters, mesenchymal) %>%
-  dplyr::group_by(seurat_clusters) %>%
-  dplyr::summarise(avg_score = mean(mesenchymal)) %>%
-  as.data.frame() %>%
-  dplyr::filter(avg_score > 0.85) %>%
-  dplyr::pull(seurat_clusters) %>%
-  as.character()
-
-clusters_oi = clusters_oi[clusters_oi != 15]
-clusters_oi
-```
-
-We set specific groups to compare this population between other mesenchymal cells :
-
-```{r 15_mesenchymal_ident}
-Seurat::Idents(sobj) = case_when(
-  sobj$seurat_clusters %in% "15" ~ "A",
-  sobj$seurat_clusters %in% clusters_oi ~ "B")
-
-table(sobj$project_name, Seurat::Idents(sobj))
-```
-
-
-We will compare those groups :
-
-```{r 15_mesenchymal_redblue, fig.width = 5, fig.height = 5}
-group1 = "A"
-group2 = "B"
-group_name = paste0(paste0(group1, collapse = "_"), "_vs_",
-                    paste0(group2, collapse = "_"))
-
-aquarius::plot_red_and_blue(sobj, group1, group2, reduction = name2D)
-```
-
-We identify differentially expressed markers between both groups :
-
-```{r 15_mesenchymal_de, fig.width = 5, fig.height = 5}
-mark = Seurat::FindMarkers(sobj,
-                           ident.1 = group1, ident.2 = group2)
-
-mark %>%
-  dplyr::top_n(n = 20, wt = abs(avg_logFC)) %>%
-  dplyr::arrange(avg_logFC)
-
-mark %>%
-  dplyr::filter(abs(pct.1 - pct.2) > 0.3) %>%
-  arrange(avg_logFC)
-```
-
-We keep only up-regulated genes in this cluster :
-
-```{r 15_mesenchymal_up, fig.width = 5, fig.height = 5}
-genes_of_interest = mark %>%
-  dplyr::filter(p_val_adj < 0.05) %>%
-  dplyr::filter(avg_logFC > 0) %>%
-  dplyr::arrange(-avg_logFC, pct.1 - pct.2)
-
-list_results[[group_name]]$up_genes = genes_of_interest
-
-dim(genes_of_interest)
-
-head(genes_of_interest, n = 20)
-```
-
-
-We explore enrichment in gene sets :
-
-```{r 15_mesenchymal_ora_up, fig.width = 15, fig.height = 8}
-enrichr_results = aquarius::run_enrichr(gene_names = rownames(genes_of_interest),
-                                        gene_corresp = gene_corresp,
-                                        gene_sets = gene_sets,
-                                        make_plot = TRUE,
-                                        plot_title = paste0("Up-regulated in cluster ", group1, 
-                                                            " compared to clusters ",
-                                                            paste0(group2, collapse = ", ")))
-
-enrichr_results$plot +
-  ggplot2::theme(axis.text.y = element_text(size = 8))
-```
-
 
 
 # Genes of interest

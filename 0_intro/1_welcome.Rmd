@@ -75,9 +75,14 @@ singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/s
 singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '44_trajectory_tinga.Rmd', output_file = '44_trajectory_tinga.html')"
 
 
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir_copie.simg Rscript -e "rmarkdown::render(input = '45_trajectory_slingshot.Rmd', output_file = '45_trajectory_slingshot.html')"
+singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '45_trajectory_slingshot.Rmd', output_file = '45_trajectory_slingshot.html')"
+
+singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '43_flfl_vs_flmn.Rmd', output_file = '43_flfl_vs_flmn.html')"
+
 
 singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '46_functional_enrichment.Rmd', output_file = '46_functional_enrichment.html')"
+
+singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '47_gsea_heatmap.Rmd', output_file = '47_gsea_heatmap.html')"
 ```
 
 ## Patients
@@ -92,6 +97,12 @@ singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/s
 done
 
 singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '3_combined_patients.Rmd', output_file = '3_combined_patients.html')"
+
+singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '41_tumor_cells_dataset.Rmd', output_file = '41_tumor_cells_dataset.html')"
+
+singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '42_trajectory_tinga.Rmd', output_file = '42_trajectory_tinga.html')"
+
+singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '43_trajectory_slingshot.Rmd', output_file = '43_trajectory_slingshot.html')"
 ```
 
 ## Graft

@@ -100,7 +100,7 @@ out_dir = "."
 n_threads = 1 # for AUCell::AUCell_buildRankings
 ```
 
-Note : Not more than nCores = 2 because it will reaches the maximum of memory and makes RStudio crash :(
+Note : Not more than `nCores = 2` because it will reaches the maximum of memory and makes RStudio crash :(
 
 We load the sample information :
 
@@ -230,8 +230,8 @@ list_colors[["pseudotime"]] = circlize::colorRamp2(breaks = seq(min(sobj$pseudot
 list_colors[["sample_type"]] = c(flfl_pNF = "blue", flfl_dyNF = "green", flfl_MPNST = "brown",
                                  flmn_dyNF = "olivedrab1", flmn_MPNST = "sienna")
 
-# list_colors[["cell_cycle_phase"]] = aquarius::gg_color_hue(3)
-# names(list_colors[["cell_cycle_phase"]]) = c("G1", "G2M", "S")
+list_colors[["cell_cycle_phase"]] = aquarius::gg_color_hue(3)
+names(list_colors[["cell_cycle_phase"]]) = c("G1", "G2M", "S")
 list_colors[["percent_mito"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$percent.mt),
                                                                   to = max(sobj$percent.mt),
                                                                   length.out = 9),
@@ -244,10 +244,10 @@ list_colors[["nFeature_RNA"]] = circlize::colorRamp2(breaks = seq(from = min(sob
                                                                   to = max(sobj$nFeature_RNA),
                                                                   length.out = 9),
                                                      colors = RColorBrewer::brewer.pal(name = "Greys", n = 9))
-# list_colors[["log_nCount_RNA"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$log_nCount_RNA),
-#                                                                     to = max(sobj$log_nCount_RNA),
-#                                                                     length.out = 9),
-#                                                        colors = RColorBrewer::brewer.pal(name = "Greys", n = 9))
+list_colors[["log_nCount_RNA"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$log_nCount_RNA),
+                                                                    to = max(sobj$log_nCount_RNA),
+                                                                    length.out = 9),
+                                                       colors = RColorBrewer::brewer.pal(name = "Greys", n = 9))
 
 # Cells order
 column_order = order(sobj$pseudotime)
@@ -263,17 +263,16 @@ ha_top = HeatmapAnnotation(pseudotime = sobj$pseudotime,
 ha_bottom = HeatmapAnnotation(percent_mito = sobj$percent.mt,
                               percent_ribo = sobj$percent.rb,
                               nFeature_RNA = sobj$nFeature_RNA,
-                              # log_nCount_RNA = sobj$log_nCount_RNA,
-                              # cell_cycle_phase = sobj$Seurat.Phase,
+                              log_nCount_RNA = sobj$log_nCount_RNA,
+                              cell_cycle_phase = sobj$Seurat.Phase,
                               sample_type = factor(sobj$sample_type,
                                                    levels = names(list_colors[["sample_type"]])),
                               col = list(sample_type = list_colors[["sample_type"]],
                                          percent_mito = list_colors[["percent_mito"]],
                                          percent_ribo = list_colors[["percent_ribo"]],
-                                         nFeature_RNA = list_colors[["nFeature_RNA"]]#,
-                                         # log_nCount_RNA = list_colors[["log_nCount_RNA"]],
-                                         # cell_cycle_phase = list_colors[["cell_cycle_phase"]]
-                              ))
+                                         nFeature_RNA = list_colors[["nFeature_RNA"]],
+                                         log_nCount_RNA = list_colors[["log_nCount_RNA"]],
+                                         cell_cycle_phase = list_colors[["cell_cycle_phase"]]))
 
 # Function to make the heatmap from the expression matrix
 make_ht = function(mat_expr) {
@@ -492,32 +491,11 @@ ComplexHeatmap::draw(ht,
                      annotation_legend_side = "bottom")
 ```
 
+# Save
 
 We save the dataframe containing score for each gene set :
 
 ```{r save_df_scores}
 saveRDS(df_scores, file = paste0(out_dir, "/", save_name, "_df_scores.rds"))
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
