@@ -221,7 +221,8 @@ We combine all datasets :
 
 ```{r merge_datasets}
 sobj = base::merge(sobj_list[[1]],
-                   y = sobj_list[c(2:length(sobj_list))])
+                   y = sobj_list[c(2:length(sobj_list))],
+                   add.cell.ids = names(sobj_list))
 sobj
 ```
 

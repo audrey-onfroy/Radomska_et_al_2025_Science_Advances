@@ -327,7 +327,8 @@ We clean this dataset :
 ```{r clean_dataset}
 column_of_interest = c("orig.ident", "sample_type", "project_name",
                        "genotype", "condition", "sample_identifier",
-                       "nCount_RNA", "nFeature_RNA", "cell_type",
+                       "nCount_RNA", "nFeature_RNA", "log_nCount_RNA",
+                       "cell_type", "Seurat.Phase", "cyclone.Phase",
                        "percent.mt", "percent.rb", "percent.st")
 
 sobj@meta.data[!(colnames(sobj@meta.data) %in% column_of_interest)] = NULL
