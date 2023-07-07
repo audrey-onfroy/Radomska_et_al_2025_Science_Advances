@@ -1,6 +1,6 @@
 ---
-title: "MPNST project"
-subtitle: "Zoom in mice TME"
+title: "Mice"
+subtitle: "Zoom in TME"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -16,10 +16,6 @@ output:
 body {
 text-align: justify}
 </style>
-
-```{r clean, echo = FALSE}
-rm(list = ls())
-```
 
 <!-- Automatically computes and prints in the output the running time for any code chunk -->
 ```{r, echo=FALSE}
@@ -47,7 +43,7 @@ knitr::knit_hooks$set(
     function(before, options) {
       if (options$time_it) {
         if (before) {
-          now <= Sys.time()
+          now <<- Sys.time()
         } else {
           res = difftime(Sys.time(), now, units = "secs")
           paste("(Time to run :", round(res, digits = 2), "s)")
@@ -83,14 +79,15 @@ knitr::opts_chunk$set(echo = TRUE, # display code
 ```
 
 
-This file is used to analyse the immune cells dataset.
+This file is used to generate a dataset containing all datasets from Nf1-KO mice.
 
 ```{r library}
 library(dplyr)
 library(patchwork)
 library(ggplot2)
-library(org.Mm.eg.db)
 library(ComplexHeatmap)
+
+.libPaths()
 ```
 
 
@@ -100,35 +97,57 @@ In this section, we set the global settings of the analysis. We will store data 
 
 ```{r out_dir}
 save_name = "all_mice"
-out_dir = "/home/aurelien/Documents/Audrey/git_analysis/mpnst_project/8_combined_mice/"
+out_dir = "."
+n_threads = 3 # for tSNE
 ```
 
 
-We load the dataset :
+We load the dataset containing all cells :
 
 ```{r load_sobj}
 sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj.rds"))
+name2D = "harmony_38_tsne"
+
 sobj
 ```
 
-and sample information :
 
-```{r load_sample_info}
-sample_info = readRDS(paste0(out_dir, "/", save_name, "_sample_info.rds")) 
-sample_info
+We load the sample information :
+
+```{r custom_palette_sample, fig.width = 8, fig.height = 8}
+sample_info = readRDS(paste0(out_dir, "/../1_metadata/mice_sample_info.rds"))
+project_names_oi = sample_info$project_name
+
+graphics::pie(rep(1, nrow(sample_info)),
+              col = sample_info$color,
+              labels = sample_info$project_name)
 ```
 
-We load specific colors for cell types :
+Here are custom colors for each cell type :
 
-```{r color_markers}
-color_markers = readRDS(paste0(out_dir, "/../1_metadata/datasets_color_markers.rds"))
+```{r color_markers, fig.width = 10, fig.height = 1, class.source = "fold-hide"}
+color_markers = readRDS(paste0(out_dir, "/../1_metadata/mice_color_markers.rds"))
+
+data.frame(cell_type = names(color_markers),
+           color = unlist(color_markers)) %>%
+  ggplot2::ggplot(., aes(x = cell_type, y = 0, fill = cell_type)) +
+  ggplot2::geom_point(pch = 21, size = 5) +
+  ggplot2::scale_fill_manual(values = unlist(color_markers), breaks = names(color_markers)) +
+  ggplot2::theme_classic() +
+  ggplot2::theme(legend.position = "none",
+                 axis.line = element_blank(),
+                 axis.title = element_blank(),
+                 axis.ticks = element_blank(),
+                 axis.text.y = element_blank())
 ```
 
+We extract gene correspondence from object :
 
-This is the projection of interest :
+```{r gene_corresp}
+gene_corresp = sobj@assays[["RNA"]]@meta.features[, c("gene_name", "Ensembl_ID")]
+colnames(gene_corresp) = c("NAME", "ID")
 
-```{r name2D}
-name2D = "harmony_38_tsne"
+head(gene_corresp)
 ```
 
 
@@ -146,10 +165,11 @@ Seurat::DimPlot(sobj, reduction = name2D, group.by = "cell_type") +
   ggplot2::theme(aspect.ratio = 1)
 ```
 
+
 We make a barplot to compare TME composition between fl/fl and fl/- :
 
 ```{r barplot_microenv, fig.width = 12, fig.height = 8}
-tumor_cells = readRDS(paste0(out_dir, "/../7_tumor_cells_mice/mice_tumor_cells_sobj.rds")) %>%
+tumor_cells = readRDS(paste0(out_dir, "/../4_tumor_cells/mice_tumor_cells_sobj.rds")) %>%
   colnames() %>%
   stringr::str_split(., pattern = "_") %>%
   lapply(., `[[`, 3) %>% unlist()
@@ -179,7 +199,9 @@ aquarius::plot_barplot(df,
   ggplot2::scale_fill_manual(breaks = names(color_markers),
                              values = unlist(color_markers),
                              name = "Cell type") +
-  ggplot2::theme(axis.title.y = element_blank())
+  ggplot2::labs(title = "TME composition and cycling status") +
+  ggplot2::theme(axis.title = element_text(hjust = 0.5),
+                 axis.title.y = element_blank())
 ```
 
 We make the same barplot, only for cycle status :
@@ -204,11 +226,13 @@ aquarius::plot_barplot(df,
                        position = ggplot2::position_fill()) +
   ggplot2::scale_fill_manual(values = aquarius::gg_color_hue(3),
                              name = "Cycling status") +
-  ggplot2::theme(axis.title.y = element_blank())
+  ggplot2::labs(title = "Cycling status in micro-environment") +
+  ggplot2::theme(axis.title = element_text(hjust = 0.5),
+                 axis.title.y = element_blank())
 ```
 
 
-We make the same only for tumor cells (mis-annotation seeable) :
+We make the same only for tumor cells :
 
 ```{r barplot_tumorcells, fig.width = 12, fig.height = 8}
 df = sobj@meta.data %>%
@@ -235,18 +259,18 @@ aquarius::plot_barplot(df,
   ggplot2::scale_fill_manual(breaks = names(color_markers),
                              values = unlist(color_markers),
                              name = "Cell type") +
-  ggplot2::theme(axis.title.y = element_blank())
+  ggplot2::labs(title = "Cycling status in tumor cells") +
+  ggplot2::theme(axis.title = element_text(hjust = 0.5),
+                 axis.title.y = element_blank())
 ```
 
 We visualize proliferation on the projection :
 
 ```{r see_birc5, fig.width = 12, fig.height = 8}
-source("/home/aurelien/Documents/Audrey/git_aquarius/R/plot_split_dimred.R")
-
-plot_list = plot_split_dimred(sobj, reduction = name2D,
-                              split_by = "project_name",
-                              split_color = sample_info$color,
-                              color_by = "Birc5")
+plot_list = aquarius::plot_split_dimred(sobj, reduction = name2D,
+                                        split_by = "project_name",
+                                        split_color = sample_info$color,
+                                        color_by = "Birc5")
 patchwork::wrap_plots(plot_list, nrow = 3) + patchwork::plot_layout(guides = "collect")
 ```
 
@@ -343,36 +367,25 @@ ggplot2::ggplot(df, aes(x = num_tum, y = num_tme, label = project_name,
   ggplot2::theme_classic()
 ```
 
-## Tumor cells
+## Clusters
 
-We load the tumor cells dataset :
+We clusters cells with a high resolution, at least to separate Cd4+ and Cd8+ T cells.
 
-```{r}
-sobj_tum = readRDS(paste0(out_dir, "/../7_tumor_cells_mice/mice_tumor_cells_sobj.rds"))
-sobj_tum
+```{r clustering_run}
+sobj = Seurat::FindClusters(sobj, resolution = 2)
 ```
 
-
-
-
-
-
-
-
-
-
-
-## Clusters
 
 We visualize clusters :
 
-```{r clustering, fig.width = 6, fig.height = 4}
+```{r clustering, fig.width = 6, fig.height = 6}
 cluster_plot = Seurat::DimPlot(sobj, reduction = name2D, label = TRUE) +
-  Seurat::NoAxes() +
-  ggplot2::theme(aspect.ratio = 1)
+  Seurat::NoAxes() + Seurat::NoLegend() +
+  ggplot2::labs(title = "Clusters ID") +
+  ggplot2::theme(plot.title = element_text(hjust = 0.5),
+                 aspect.ratio = 1)
 cluster_plot
 ```
-
 
 and split by origin :
 
@@ -394,19 +407,21 @@ patchwork::wrap_plots(plot_list, ncol = 6) &
 
 # Differential expression
 
-What is the identity of specific clusters ?
+In this section, we investigate differences in each cluster of TME cell populations. We identify major cell types by cluster, to smooth annotation and re-annotated mis-annotated cells :
 
-We design a custom functions to represent cells of interest on the projection :
-
-```{r see_clusters, class.source = "fold-hide"}
-# Major cell type by cluster
+```{r cell_type_clusters}
 cell_type_clusters = sobj@meta.data[, c("cell_type", "seurat_clusters")] %>%
   table() %>%
   prop.table(., margin = 2) %>%
   apply(., 2, which.max)
 cell_type_clusters = setNames(levels(sobj$cell_type)[cell_type_clusters],
                               nm = names(cell_type_clusters))
+```
 
+
+We design a custom functions to represent cells of interest on the projection :
+
+```{r see_clusters, class.source = "fold-hide"}
 see_clusters = function(pop_oi = "macrophages") {
   # Clusters containing population of interest
   clusters_oi = names(which(cell_type_clusters == pop_oi))
@@ -473,14 +488,6 @@ gene_sets = gene_sets$gene_sets
 head(gene_sets)
 ```
 
-We get gene name and gene ID correspondence :
-
-```{r gene_corresp}
-gene_corresp = aquarius::get_gene_id(
-  gtf_path = "/mnt/Data/GENOME/mm10_IREScre_tdTomato_eYFP/genes/genes.gtf")
-
-head(gene_corresp)
-```
 
 ## Macrophages
 
@@ -964,15 +971,16 @@ We represent those clusters on the projection :
 see_clusters("T cells")
 ```
 
+### Cluster 25
 
-### Cluster 17 - fl/fl vs fl/-
+We set specific identifiers to compare this population between fl/fl and fl/- genotype :
 
-We set specific idents to compare this population between fl/fl and fl/- genotype :
+```{r cluster25_idents, fig.width = 5, fig.height = 5}
+clusters_oi = 25
 
-```{r T_cells_idents, fig.width = 5, fig.height = 5}
 Seurat::Idents(sobj) = case_when(
-  sobj$seurat_clusters %in% clusters_oi[1] & sobj$genotype == "flfl" ~ "flfl",
-  sobj$seurat_clusters %in% clusters_oi[1] & sobj$genotype == "flmn" ~ "flmn")
+  sobj$seurat_clusters %in% clusters_oi & sobj$genotype == "flfl" ~ "flfl",
+  sobj$seurat_clusters %in% clusters_oi & sobj$genotype == "flmn" ~ "flmn")
 
 group1 = "flfl"
 group2 = "flmn"
@@ -982,7 +990,7 @@ aquarius::plot_red_and_blue(sobj, group1, group2, reduction = name2D)
 
 We make identify specific markers for both groups :
 
-```{r T_cells_de, fig.width = 5, fig.height = 5}
+```{r cluster25_de, fig.width = 5, fig.height = 5}
 mark = Seurat::FindMarkers(sobj,
                            ident.1 = group1, ident.2 = group2)
 
@@ -998,7 +1006,7 @@ mark %>%
 
 #### Up in flfl
 
-```{r T_cells_flfl}
+```{r cluster25_flfl}
 genes_of_interest = mark %>%
   dplyr::filter(p_val_adj < 0.05) %>%
   dplyr::filter(avg_logFC > 0) %>%
@@ -1010,11 +1018,11 @@ head(genes_of_interest, n = 20)
 
 We explore enrichment in gene sets :
 
-```{r T_cells_flfl_ora, fig.width = 12, fig.height = 8}
+```{r cluster25_flfl_ora, fig.width = 12, fig.height = 8}
 enrichr_results = aquarius::run_enrichr(
   gene_names = rownames(genes_of_interest),
-  gene_corresp = gene_corresp[, c("NAME", "NAME")] %>% `colnames<-`(c("NAME", "ENTREZID")),
-  gene_sets = gene_sets[, c("gs_name", "gene_symbol")] %>% `colnames<-`(c("gs_name", "entrez_gene")),
+  gene_corresp = gene_corresp, # %>% `colnames<-`(c("NAME", "ENTREZID")),
+  gene_sets = gene_sets[, c("gs_name", "ensembl_gene")], # %>% `colnames<-`(c("gs_name", "entrez_gene")),
   make_plot = TRUE,
   plot_title = paste0("Up-regulated in cluster ", group1, 
                       " compared to clusters ",
@@ -1027,7 +1035,7 @@ enrichr_results$plot +
 
 #### Up in fl/-
 
-```{r T_cells_flmn}
+```{r cluster25_flmn}
 genes_of_interest = mark %>%
   dplyr::filter(p_val_adj < 0.05) %>%
   dplyr::filter(avg_logFC < 0) %>%
@@ -1039,11 +1047,11 @@ head(genes_of_interest, n = 20)
 
 We explore enrichment in gene sets :
 
-```{r T_cells_flmn_ora, fig.width = 12, fig.height = 5}
+```{r cluster25_flmn_ora, fig.width = 12, fig.height = 5}
 enrichr_results = aquarius::run_enrichr(
   gene_names = rownames(genes_of_interest),
-  gene_corresp = gene_corresp[, c("NAME", "NAME")] %>% `colnames<-`(c("NAME", "ENTREZID")),
-  gene_sets = gene_sets[, c("gs_name", "gene_symbol")] %>% `colnames<-`(c("gs_name", "entrez_gene")),
+  gene_corresp = gene_corresp, # %>% `colnames<-`(c("NAME", "ENTREZID")),
+  gene_sets = gene_sets[, c("gs_name", "ensembl_gene")], # %>% `colnames<-`(c("gs_name", "entrez_gene")),
   make_plot = TRUE,
   plot_title = paste0("Up-regulated in cluster ", group2, 
                       " compared to clusters ",
@@ -1052,6 +1060,41 @@ enrichr_results = aquarius::run_enrichr(
 enrichr_results$plot +
   ggplot2::theme(axis.text.y = element_text(size = 8))
 ```
+
+### GSEA
+
+For GSEA, we compute the fold change between both groups :
+
+```{r cluster25_gsea, fig.width = 15, fig.height = 30}
+## Ranked gene list
+ranked_gene_list = aquarius::run_foldchange(Seurat::GetAssayData(sobj, assay = "RNA", slot = "counts"),
+                                            group1 = colnames(sobj)[sobj@active.ident %in% group1],
+                                            group2 = colnames(sobj)[sobj@active.ident %in% group2])
+names(ranked_gene_list) = gene_corresp[names(ranked_gene_list), "ID"]
+
+head(ranked_gene_list)
+
+## GSEA
+gsea_results = aquarius::gsea_run(ranked_gene_list = ranked_gene_list,
+                                  gene_sets = gene_sets[, c("gs_name", "ensembl_gene")],
+                                  GSEA_p_val_thresh = 1)
+
+gsea_results@result %>%
+  dplyr::filter(pvalue < 0.01) %>%
+  dplyr::filter(setSize > 20) %>%
+  dplyr::filter(setSize < 500) %>%
+  aquarius::gsea_plot(show_legend = TRUE) +
+  ggplot2::labs(title = "GSEA using all genes (count matrix)") +
+  ggplot2::theme(plot.title = element_text(size = 20))
+```
+
+
+
+
+
+
+
+
 
 
 ### Cluster 14 - fl/fl vs fl/-

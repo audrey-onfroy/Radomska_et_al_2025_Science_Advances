@@ -122,6 +122,69 @@ This is the projection of interest :
 name2D = "mnn_41_tsne"
 ```
 
+We design a custom function to make the GSEA plot and a word cloud graph :
+
+```{r make_gsea_plot, class.sourcce = "fold-hide"}
+make_gsea_plot = function(gsea_results, gs_oi, fold_change, metric = "FC") {
+  fold_change$metric = fold_change[, metric]
+  
+  plot_list = lapply(gs_oi, FUN = function(gene_set) {
+    # Gene set content
+    gs_content = gene_sets %>%
+      dplyr::filter(gs_name == gene_set) %>%
+      dplyr::pull(ensembl_gene) %>%
+      unique()
+    
+    # Gene set size
+    nb_genes = length(gs_content)
+    
+    # Enrichment metrics
+    NES = gsea_results@result[gene_set, "NES"]
+    p.adjust = gsea_results@result[gene_set, "p.adjust"] %>%
+      round(., 4)
+    qvalues = gsea_results@result[gene_set, "qvalues"]
+    
+    if (p.adjust > 0.05) {
+      p.adjust = paste0("<span style='color:red;'>", p.adjust, "</span>")
+    }
+    
+    my_subtitle = paste0("\nNES : ", round(NES, 2),
+                         " | padj : ", p.adjust,
+                         " | qval : ", round(qvalues, 4),
+                         " | set size : ", nb_genes, " genes")
+    
+    # Size limits
+    lower_FC = min(fold_change[gs_content, ]$metric, na.rm = TRUE)
+    upper_FC = max(fold_change[gs_content, ]$metric, na.rm = TRUE)
+    
+    # Plot
+    p = enrichplot::gseaplot2(x = gsea_results, geneSetID = gene_set) +
+      ggplot2::labs(title = gene_set,
+                    subtitle = my_subtitle) +
+      ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold",
+                                               margin = ggplot2::margin(3, 3, 5, 3)),
+                     plot.subtitle = ggtext::element_markdown(hjust = 0.5,
+                                                              size = 10))
+    
+    wc = ggplot2::ggplot(fold_change[gs_content, ],
+                         aes(label = gene_name, size = abs(metric), color = metric)) +
+      ggwordcloud::geom_text_wordcloud_area(show.legend = TRUE) +
+      ggplot2::scale_color_gradient2(
+        name = metric,
+        low = aquarius::color_cnv[1],
+        mid = "gray70", midpoint = 0,
+        high = aquarius::color_cnv[3]) +
+      ggplot2::scale_size_area(max_size = 7) +
+      ggplot2::theme_minimal() +
+      ggplot2::guides(size = "none")
+    
+    return(list(p, wc))
+  }) %>% unlist(., recursive = FALSE)
+  
+  return(plot_list)
+}
+```
+
 
 # Visualization
 
@@ -190,7 +253,11 @@ In this section, we prepare the gene annotation. Gene annotation is stored in th
 
 ```{r gene_corresp}
 gene_corresp = sobj@assays[["RNA"]]@meta.features[, c("gene_name", "Ensembl_ID")]
-names(gene_corresp) = c("NAME", "ID")
+colnames(gene_corresp) = c("NAME", "ID")
+gene_corresp$NAME = as.character(gene_corresp$NAME)
+gene_corresp$ID = as.character(gene_corresp$ID)
+gene_corresp[nrow(gene_corresp), ] = c("eYFP", "eYFP")
+rownames(gene_corresp) = rownames(sobj)
 
 head(gene_corresp)
 ```
@@ -392,33 +459,28 @@ gsea_results@result %>%
 
 We look at the GSEA plot for some gene sets :
 
-```{r glial_gsea_plot, fig.width = 12, fig.height = 23}
-# grep(gene_sets_of_interest, pattern = "RHO", value = TRUE)
-gene_sets_plot = c("GOCC_COLLAGEN_CONTAINING_EXTRACELLULAR_MATRIX",
-                   "REACTOME_SIGNALING_BY_ROBO_RECEPTORS",
-                   "REACTOME_REGULATION_OF_EXPRESSION_OF_SLITS_AND_ROBOS",
-                   "HALLMARK_INTERFERON_GAMMA_RESPONSE",
-                   "REACTOME_INTERFERON_SIGNALING",
-                   "GOCC_CELL_SUBSTRATE_JUNCTION",
-                   "KEGG_FOCAL_ADHESION",
-                   "GOMF_CADHERIN_BINDING",
-                   "REACTOME_L1CAM_INTERACTIONS",
-                   "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION")
+```{r glial_gsea_plot, fig.width = 12, fig.height = 40}
+gs_oi = c("GOCC_COLLAGEN_CONTAINING_EXTRACELLULAR_MATRIX",
+          "REACTOME_SIGNALING_BY_ROBO_RECEPTORS",
+          "REACTOME_REGULATION_OF_EXPRESSION_OF_SLITS_AND_ROBOS",
+          "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+          "REACTOME_INTERFERON_SIGNALING",
+          "GOCC_CELL_SUBSTRATE_JUNCTION",
+          "KEGG_FOCAL_ADHESION",
+          "GOMF_CADHERIN_BINDING",
+          "REACTOME_L1CAM_INTERACTIONS",
+          "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION")
 
-plot_list = lapply(gene_sets_plot, FUN = function(gene_set) {
-  gs_size = gene_sets %>%
-    dplyr::filter(gs_name == gene_set) %>%
-    dplyr::pull(ensembl_gene) %>%
-    as.character() %>% unique() %>% length()
-  
-  p = enrichplot::gseaplot2(gsea_results, geneSetID = gene_set) +
-    ggplot2::labs(title = gene_set,
-                  subtitle = paste0(gs_size, " genes")) +
-    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-                   plot.subtitle = element_text(hjust = 0.5))
-  return(p)
-})
-patchwork::wrap_plots(plot_list, ncol = 2)
+# For ggwordcloud
+fold_change = gene_corresp
+colnames(fold_change) = c("gene_name", "ID")
+rownames(fold_change) = fold_change$ID
+fold_change$FC = ranked_gene_list[rownames(fold_change)]
+
+# Make plot
+plot_list = make_gsea_plot(gsea_results, gs_oi, fold_change)
+
+patchwork::wrap_plots(plot_list, ncol = 2, widths = c(2,1.5))
 ```
 
 
@@ -573,7 +635,7 @@ length(gene_sets_of_interest)
 
 We run GSEA for each gene sets :
 
-```{r mes_gsea, fig.width = 12, fig.height = 4}
+```{r mes_gsea, fig.width = 12, fig.height = 20}
 gsea_results = aquarius::gsea_run(ranked_gene_list = ranked_gene_list,
                                   gene_sets = gene_sets[gene_sets$gs_name %in%
                                                           gene_sets_of_interest, c("gs_name", "ensembl_gene")],
@@ -590,40 +652,65 @@ gsea_results@result %>%
 
 We look at the GSEA plot for some gene sets :
 
-```{r mes_gsea_plot, fig.width = 12, fig.height = 25}
+```{r mes_gsea_plot, fig.width = 12, fig.height = 100}
 # grep(gene_sets_of_interest, pattern = "RHO", value = TRUE)
-gene_sets_plot = c("WP_NEUROINFLAMMATION",
-                   "GOCC_COLLAGEN_CONTAINING_EXTRACELLULAR_MATRIX",
-                   "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
-                   "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION",
-                   "WP_IL18_SIGNALING_PATHWAY",
-                   "HALLMARK_APOPTOSIS",
-                   "HALLMARK_HYPOXIA",
-                   "HALLMARK_P53_PATHWAY",
-                   "GOBP_REGULATION_OF_SIGNAL_TRANSDUCTION_BY_P53_CLASS_MEDIATOR",
-                   "PID_P53_DOWNSTREAM_PATHWAY",
-                   "GOBP_RESPONSE_TO_OXIDATIVE_STRESS",
-                   "HALLMARK_INTERFERON_ALPHA_RESPONSE",
-                   "HALLMARK_INTERFERON_GAMMA_RESPONSE",
-                   "GOMF_EXTRACELLULAR_MATRIX_BINDING",
-                   "GOBP_REGULATION_OF_EXTRACELLULAR_MATRIX_ORGANIZATION",
-                   "REACTOME_SIGNALING_BY_ROBO_RECEPTORS",
-                   "REACTOME_REGULATION_OF_EXPRESSION_OF_SLITS_AND_ROBOS")
+gs_oi = c("WP_NEUROINFLAMMATION",
+          "GOCC_COLLAGEN_CONTAINING_EXTRACELLULAR_MATRIX",
+          "WP_MATRIX_METALLOPROTEINASES",
+          "GOBP_AXON_DEVELOPMENT",
+          "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+          "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION",
+          "WP_IL18_SIGNALING_PATHWAY",
+          "HALLMARK_APOPTOSIS",
+          "HALLMARK_HYPOXIA",
+          "HALLMARK_P53_PATHWAY",
+          "GOBP_REGULATION_OF_SIGNAL_TRANSDUCTION_BY_P53_CLASS_MEDIATOR",
+          "PID_P53_DOWNSTREAM_PATHWAY",
+          "GOBP_RESPONSE_TO_OXIDATIVE_STRESS",
+          "HALLMARK_INTERFERON_ALPHA_RESPONSE",
+          "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+          "REACTOME_INTERFERON_ALPHA_BETA_SIGNALING",
+          "GOMF_EXTRACELLULAR_MATRIX_BINDING",
+          "GOBP_REGULATION_OF_EXTRACELLULAR_MATRIX_ORGANIZATION",
+          "GOBP_CELL_CHEMOTAXIS",
+          "GOBP_REGULATION_OF_CHEMOTAXIS",
+          "GOMF_FIBROBLAST_GROWTH_FACTOR_BINDING",
+          "PID_FGF_PATHWAY",
+          "GOBP_WOUND_HEALING",
+          "GOBP_REGULATION_OF_RESPONSE_TO_WOUNDING",
+          "GOBP_REGULATION_OF_T_CELL_ACTIVATION",
+          "HALLMARK_TNFA_SIGNALING_VIA_NFKB",
+          "GOBP_RESPONSE_TO_TUMOR_NECROSIS_FACTOR",
+          "GOBP_POSITIVE_REGULATION_OF_MAPK_CASCADE",
+          "GOBP_REGULATION_OF_P38MAPK_CASCADE",
+          "GOBP_ERK1_AND_ERK2_CASCADE",
+          "HALLMARK_KRAS_SIGNALING_UP",
+          "HALLMARK_HYPOXIA",
+          "GOBP_IRON_ION_HOMEOSTASIS",
+          "HALLMARK_MYOGENESIS",
+          "WP_BDNFTRKB_SIGNALING")
 
-plot_list = lapply(gene_sets_plot, FUN = function(gene_set) {
-  gs_size = gene_sets %>%
-    dplyr::filter(gs_name == gene_set) %>%
-    dplyr::pull(ensembl_gene) %>%
-    as.character() %>% unique() %>% length()
-  
-  p = enrichplot::gseaplot2(gsea_results, geneSetID = gene_set) +
-    ggplot2::labs(title = gene_set,
-                  subtitle = paste0(gs_size, " genes")) +
-    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-                   plot.subtitle = element_text(hjust = 0.5))
-  return(p)
-})
-patchwork::wrap_plots(plot_list, ncol = 2)
+# For ggwordcloud
+fold_change = gene_corresp
+colnames(fold_change) = c("gene_name", "ID")
+rownames(fold_change) = fold_change$ID
+fold_change$FC = ranked_gene_list[rownames(fold_change)]
+fold_change$pct.1 = Seurat::GetAssayData(sobj, assay = "RNA", slot = "counts")[, sobj@active.ident %in% group1] %>%
+  apply(., MARGIN = 1, FUN = function(one_row) {
+    return( mean(one_row != 0) )
+  })
+fold_change$pct.2 = Seurat::GetAssayData(sobj, assay = "RNA", slot = "counts")[, sobj@active.ident %in% group2] %>%
+  apply(., MARGIN = 1, FUN = function(one_row) {
+    return( mean(one_row != 0) )
+  })
+fold_change$FC_x_pct = ifelse(fold_change$FC > 0,
+                              yes = fold_change$FC * fold_change$pct.1,
+                              no = fold_change$FC * fold_change$pct.2)
+
+# Make plot
+plot_list = make_gsea_plot(gsea_results, gs_oi, fold_change, metric = "FC_x_pct")
+
+patchwork::wrap_plots(plot_list, ncol = 2, widths = c(2,1.5))
 ```
 
 
@@ -631,7 +718,7 @@ patchwork::wrap_plots(plot_list, ncol = 2)
 
 ### Specific to `2022_23`
 
-Are they specific enriched pathways in this sample, where Cdkn2a is still expressed, but Trp53 is lost ? First, we compare the glial population, then the mesenchymal. We compare gene expression only in fl/- datasets.
+Are they specific enriched pathways in this sample, where Cdkn2a is still expressed, but Trp53 is lost ? First, we compare the glial population, then the mesenchymal, to other samples. We compare gene expression only in fl/- datasets.
 
 #### Glial
 

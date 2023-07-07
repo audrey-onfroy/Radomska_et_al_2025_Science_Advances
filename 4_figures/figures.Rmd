@@ -449,6 +449,10 @@ This figure represent cell types annotation from all mouse datasets.
 aquarius::fig_plot_dimplot(sobj_full, reduction_tsne, "cluster_type", color_markers, title = "PNST atlas")
 ```
 
+```{r fig3_A1_cell_type, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
+aquarius::fig_plot_dimplot(sobj_full, reduction_tsne, "cell_type", color_markers, title = "PNST atlas")
+```
+
 This figure represent Tomato expression to justify tumor cells annotation.
 
 ```{r fig3_A2, class.source = 'fold-hide', fig.width = 6, fig.height = 5}
@@ -471,6 +475,21 @@ plot_list = aquarius::plot_split_dimred(sobj_full,
                                         reduction = reduction_tsne,
                                         split_by = "tumor_type_genotype",
                                         group_by = "cluster_type",
+                                        group_color = unlist(color_markers))
+
+patchwork::wrap_plots(plot_list, nrow = 2) +
+  patchwork::plot_layout(design = "ABC\n#DE") &
+  Seurat::NoLegend()
+```
+
+```{r fig3_B_cell_type, class.source = 'fold-hide', fig.width = 12, fig.height = 8}
+sobj_full$tumor_type_genotype = paste(sobj_full$tumor_type, sobj_full$genotype, sep = "_") %>%
+  factor(., levels = c("pNF_flfl", "dyNF_flfl", "MPNST_flfl", "dyNF_flmn", "MPNST_flmn"))
+
+plot_list = aquarius::plot_split_dimred(sobj_full,
+                                        reduction = reduction_tsne,
+                                        split_by = "tumor_type_genotype",
+                                        group_by = "cell_type",
                                         group_color = unlist(color_markers))
 
 patchwork::wrap_plots(plot_list, nrow = 2) +
@@ -558,9 +577,9 @@ patchwork::wrap_plots(plot_list, widths = plot_content, nrow = 1) +
 ```
 
 
-This barplot represents the proportion of cell populations, by tumor type for all mice :
+This barplot represents the proportion of cell populations, by tumor type for all mice, except the two samples filtered for Tomato expression by FACS :
 
-```{r fig3_C_flfl, class.source = 'fold-hide', fig.width = 4.5, fig.height = 5.5}
+```{r fig3_C, class.source = 'fold-hide', fig.width = 4.5, fig.height = 5.5}
 subsobj = subset(sobj_full, cells = colnames(sobj_full)[bool])
 subsobj$sample_identifier = factor(subsobj$sample_identifier,
                                    levels = intersect(levels(subsobj$sample_identifier), subsobj$sample_identifier))
@@ -577,6 +596,43 @@ aquarius::fig_plot_bp_tt(subsobj, groupby = "cluster_type",
   Seurat::NoLegend()
 ```
 
+This is the same figure, but for **fl/fl mice** only :
+
+```{r fig3_C_flfl, class.source = 'fold-hide', fig.width = 4.5, fig.height = 5.5}
+subsubsobj = subset(subsobj, genotype == "flfl")
+subsubsobj$sample_identifier = factor(subsubsobj$sample_identifier,
+                                      levels = intersect(levels(subsubsobj$sample_identifier), subsubsobj$sample_identifier))
+
+family_color[["cycling tumor cells"]] = family_color[["tumor cells"]]
+family_color = family_color[c("immune cells", "stromal cells", "tumor cells", "cycling tumor cells")]
+
+subsubsobj$cell_family = ifelse(subsubsobj$cluster_type == "TOM+ cells" & subsubsobj$Seurat.Phase %in% c("G2M", "S"),
+                                yes = "cycling tumor cells",
+                                no = subsobj$cell_family)
+
+aquarius::fig_plot_bp_tt(subsubsobj, groupby = "cluster_type",
+                         colors = color_markers, family_color = family_color) +
+  Seurat::NoLegend()
+```
+
+This is the same figure, but for **fl/- mice** only :
+
+```{r fig3_C_flmn, class.source = 'fold-hide', fig.width = 4.5, fig.height = 5.5}
+subsubsobj = subset(subsobj, genotype == "flmn")
+subsubsobj$sample_identifier = factor(subsubsobj$sample_identifier,
+                                      levels = intersect(levels(subsubsobj$sample_identifier), subsubsobj$sample_identifier))
+
+family_color[["cycling tumor cells"]] = family_color[["tumor cells"]]
+family_color = family_color[c("immune cells", "stromal cells", "tumor cells", "cycling tumor cells")]
+
+subsubsobj$cell_family = ifelse(subsubsobj$cluster_type == "TOM+ cells" & subsubsobj$Seurat.Phase %in% c("G2M", "S"),
+                                yes = "cycling tumor cells",
+                                no = subsobj$cell_family)
+
+aquarius::fig_plot_bp_tt(subsubsobj, groupby = "cluster_type",
+                         colors = color_markers, family_color = family_color) +
+  Seurat::NoLegend()
+```
 
 This dotplot assesses the cell type annotation :
 
@@ -597,25 +653,25 @@ aquarius::fig_plot_dotplot(sobj_full,
 
 ```{r clean_mouse, echo = FALSE}
 rm(dotplot_markers, bool, markers, sample_tomato,
-   subsobj, df_proportion, cluster_type, subsobj)
+   df_proportion, cluster_type, subsubsobj)
 ```
 
 
 How many cells for each cell type, by tumor type ?
 
 ```{r figS2_E, fig.height = 5, fig.width = 8, class.source = "fold-hide"}
-df_quantities = table(sobj_full$cluster_type,
-                      sobj_full$tumor_type) %>%
+df_quantities = table(subsobj$cluster_type,
+                      subsobj$tumor_type) %>%
   prop.table(., margin = 2) %>%
   "*"(100) %>% round(., 2) %>%
   as.data.frame.array(stringAsFactors = FALSE) %>%
   dplyr::mutate(cluster_type = rownames(.)) %>%
   dplyr::relocate(cluster_type)
-df_quantities$nb_cells = rowSums(table(sobj_full$cluster_type, sobj_full$tumor_type))
+df_quantities$nb_cells = rowSums(table(subsobj$cluster_type, subsobj$tumor_type))
 df_quantities = rbind(df_quantities,
-                      c("Number of cells", as.numeric(table(sobj_full$tumor_type)), ncol(sobj_full)))
+                      c("Number of cells", as.numeric(table(subsobj$tumor_type)), ncol(subsobj)))
 
-columns_color = unlist(color_markers[levels(sobj_full$cluster_type)])
+columns_color = unlist(color_markers[levels(subsobj$cluster_type)])
 columns_color = c(columns_color, NA, rep(NA, times = nrow(df_quantities)*(ncol(df_quantities) - 1)))
 font_color = ifelse(is.na(columns_color), yes = "black", no = "white")
 
@@ -653,6 +709,124 @@ patchwork::wrap_plots(list(title_gg, gb)) +
   patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
 ```
+
+We make this table only for fl/fl samples :
+
+```{r figS2_E_flfl, fig.height = 5, fig.width = 8, class.source = "fold-hide"}
+submetadata = subsobj@meta.data %>%
+  dplyr::filter(genotype == "flfl")
+
+df_quantities = table(submetadata$cluster_type,
+                      submetadata$tumor_type) %>%
+  prop.table(., margin = 2) %>%
+  "*"(100) %>% round(., 2) %>%
+  as.data.frame.array(stringAsFactors = FALSE) %>%
+  dplyr::mutate(cluster_type = rownames(.)) %>%
+  dplyr::relocate(cluster_type)
+df_quantities$nb_cells = rowSums(table(submetadata$cluster_type, submetadata$tumor_type))
+df_quantities = rbind(df_quantities,
+                      c("Number of cells", as.numeric(table(submetadata$tumor_type)), nrow(submetadata)))
+
+columns_color = unlist(color_markers[levels(submetadata$cluster_type)])
+columns_color = c(columns_color, NA, rep(NA, times = nrow(df_quantities)*(ncol(df_quantities) - 1)))
+font_color = ifelse(is.na(columns_color), yes = "black", no = "white")
+
+# Cell type
+custom_theme1 = gridExtra::ttheme_minimal(base_colour = font_color,
+                                          core = list(bg_params = list(fill = columns_color,
+                                                                       col = "black")),
+                                          colhead = list(fg_params = list(col = "black")))
+gb1 = gridExtra::tableGrob(df_quantities,
+                           rows = NULL,
+                           cols = c("Cell type", "pNF", "dyNF", "MPNST", "Nb cells"),
+                           theme = custom_theme1)
+
+# Cell family (merged cells)
+custom_theme2 = gridExtra::ttheme_minimal(base_colour = c("black", "white", "white"),
+                                          core = list(bg_params = list(fill = family_color,
+                                                                       col = "black")),
+                                          colhead = list(fg_params = list(col = "black")))
+gb2 = data.frame(cell_family = c("immune cells", "stromal cells", "tumor cells")) %>%
+  gridExtra::tableGrob(.,
+                       row = NULL,
+                       cols = c("Cell family"),
+                       theme = custom_theme2)
+
+# Merge
+gb = gridExtra::gtable_combine(gb2,gb1, along = 1)
+gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 11, 15, 2, 11, 15)
+gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(10, 14, 15, 10, 14, 15)
+
+# Patchwork
+title_gg = ggplot2::ggplot() +
+  ggplot2::theme_minimal()
+
+patchwork::wrap_plots(list(title_gg, gb)) +
+  patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
+  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+```
+
+and only for fl/- :
+
+```{r figS2_E_flmn, fig.height = 5, fig.width = 8, class.source = "fold-hide"}
+submetadata = subsobj@meta.data %>%
+  dplyr::filter(genotype == "flmn")
+
+df_quantities = table(submetadata$cluster_type,
+                      submetadata$tumor_type) %>%
+  prop.table(., margin = 2) %>%
+  "*"(100) %>% round(., 2) %>%
+  as.data.frame.array(stringAsFactors = FALSE) %>%
+  dplyr::mutate(cluster_type = rownames(.)) %>%
+  dplyr::relocate(cluster_type)
+df_quantities$nb_cells = rowSums(table(submetadata$cluster_type, submetadata$tumor_type))
+df_quantities = rbind(df_quantities,
+                      c("Number of cells", as.numeric(table(submetadata$tumor_type)), nrow(submetadata)))
+
+# Remove pNF column
+df_quantities = df_quantities %>%
+  dplyr::select(-pNF)
+
+columns_color = unlist(color_markers[levels(submetadata$cluster_type)])
+columns_color = c(columns_color, NA, rep(NA, times = nrow(df_quantities)*(ncol(df_quantities) - 1)))
+font_color = ifelse(is.na(columns_color), yes = "black", no = "white")
+
+# Cell type
+custom_theme1 = gridExtra::ttheme_minimal(base_colour = font_color,
+                                          core = list(bg_params = list(fill = columns_color,
+                                                                       col = "black")),
+                                          colhead = list(fg_params = list(col = "black")))
+gb1 = gridExtra::tableGrob(df_quantities,
+                           rows = NULL,
+                           cols = c("Cell type", "dyNF", "MPNST", "Nb cells"),
+                           theme = custom_theme1)
+
+# Cell family (merged cells)
+custom_theme2 = gridExtra::ttheme_minimal(base_colour = c("black", "white", "white"),
+                                          core = list(bg_params = list(fill = family_color,
+                                                                       col = "black")),
+                                          colhead = list(fg_params = list(col = "black")))
+gb2 = data.frame(cell_family = c("immune cells", "stromal cells", "tumor cells")) %>%
+  gridExtra::tableGrob(.,
+                       row = NULL,
+                       cols = c("Cell family"),
+                       theme = custom_theme2)
+
+# Merge
+gb = gridExtra::gtable_combine(gb2,gb1, along = 1)
+gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 11, 15, 2, 11, 15)
+gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(10, 14, 15, 10, 14, 15)
+
+# Patchwork
+title_gg = ggplot2::ggplot() +
+  ggplot2::theme_minimal()
+
+patchwork::wrap_plots(list(title_gg, gb)) +
+  patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
+  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+```
+
+
 
 ```{r clean_prop, echo = FALSE}
 rm(df_quantities, custom_theme1, custom_theme2, gb, gb1, gb2,
@@ -697,7 +871,7 @@ Seurat::DimPlot(sobj_full, group.by = "is_tumor_cells", reduction = reduction_ts
 
 This figure represents the sample of origin, to assess batch-effect correction of the projection. It shows cell cycle phase of each cell, and pseudotime values.
 
-```{r fig4_A2, fig.width = 20, fig.height = 6, class.source = 'fold-hide'}
+```{r fig4_A2, fig.width = 20, fig.height = 5, class.source = 'fold-hide'}
 plot_list = list()
 
 ## Color by sample
@@ -736,11 +910,21 @@ plot_list[[1]] = Seurat::FeaturePlot(sobj, pt.size = 0.25,
                  legend.direction = "horizontal")
 
 ## Groups of cells
-plot_list[[4]] = Seurat::DimPlot(sobj, 
+plot_list[[4]] = Seurat::DimPlot(sobj,
                                  reduction = name2D,
                                  group.by = "kmeans_group",
                                  cols = c(group_colors, "black")) +
   ggplot2::labs(title = "Cells groups") +
+  ggplot2::theme(legend.position = c(0.05, 0.1)) +
+  ggplot2::guides(color = guide_legend(override.aes = list(size = 4)))
+
+## Genotype
+plot_list[[5]] = Seurat::DimPlot(sobj, pt.size = 0.001,
+                                 reduction = name2D,
+                                 group.by = "genotype",
+                                 cols = c("#C82721", "#2A71A6"),
+                                 order = sample(colnames(sobj), size = ncol(sobj), replace = FALSE)) +
+  ggplot2::labs(title = "Genotype") +
   ggplot2::theme(legend.position = c(0.05, 0.1)) +
   ggplot2::guides(color = guide_legend(override.aes = list(size = 4)))
 
@@ -755,6 +939,58 @@ plot_list = lapply(plot_list, FUN = function(one_plot) {
 ## Patchwork
 patchwork::wrap_plots(plot_list, nrow = 1) &
   ggplot2::theme(legend.text = element_text(size = 12))
+```
+
+This is a barplot depicted glial vs mesenchymal contribution to tumor cells population, in each sample. Warning : "high mito" cells are not there, and they are all glial cells present in dyNF samples from fl/fl samples, the proportion of mesenchymal cells is over-estimated. Moreover, pay attention to the number of cells in each sample. For some samples, 100 \% of cells correspond to 500 cells, and in some other, thousands of tumor cells were available.
+
+```{r fig4_Z, class.source = "fold-hide", fig.width = 12, fig.height = 3.5}
+sobj$Sox10_on_Sox9 = Seurat::FetchData(sobj, "Sox10")[, 1] / (Seurat::FetchData(sobj, "Sox9")[, 1] + Seurat::FetchData(sobj, "Sox10")[, 1] + 0.001)
+Sox_group = sobj@meta.data %>%
+  dplyr::select(seurat_clusters, Sox10_on_Sox9) %>%
+  dplyr::group_by(seurat_clusters) %>%
+  dplyr::summarise(Sox_group = mean(Sox10_on_Sox9)) %>%
+  dplyr::mutate(Sox_group = ifelse(Sox_group > 0.6, yes = "glial", no = "mesenchymal")) %>%
+  as.data.frame()
+Sox_group = setNames(nm = Sox_group$seurat_clusters,
+                     Sox_group$Sox_group)
+# sobj$Sox_group = Sox_group[sobj$seurat_clusters]
+sobj$Sox_group = ifelse(sobj$pseudotime < 0.65,
+                        yes = "glial", no = "mesenchymal")
+
+#### Plot
+Sox_group = table(sobj$sample_identifier,
+                  sobj$Sox_group) %>%
+  prop.table(., margin = 1) %>%
+  as.data.frame.table() %>%
+  `colnames<-`(c("sample_identifier", "Sox_group", "prop_cells"))
+
+plot_list = list()
+
+plot_list[[1]] = aquarius::plot_barplot(Sox_group,
+                       x = "sample_identifier",
+                       y = "prop_cells",
+                       fill = "Sox_group",
+                       position = ggplot2::position_fill()) +
+  ggplot2::scale_fill_manual(values = c("#6aa84f", "#a61c00"),
+                             breaks = c("glial", "mesenchymal"),
+                             name = "Sox group") +
+  ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
+                              labels = paste0(seq(0, 100, by = 10), sep = " %"),
+                              expand = c(0,0)) +
+  ggplot2::theme(axis.title.y = ggplot2::element_blank(),
+                 axis.line.x = ggplot2::element_line(colour = "lightgray"),
+                 plot.title = ggtext::element_textbox(hjust = 0.5,
+                                                      margin = margin(t = 5, b = 5))) +
+  Seurat::NoLegend()
+
+plot_list[[2]] = Seurat::DimPlot(sobj, reduction = name2D, group.by = "Sox_group") +
+  ggplot2::scale_color_manual(values = c("#6aa84f", "#a61c00"),
+                             breaks = c("glial", "mesenchymal"),
+                             name = "Sox group") +
+  ggplot2::theme(aspect.ratio = 1) +
+  Seurat::NoAxes()
+
+patchwork::wrap_plots(plot_list, nrow = 1, widths = c(1,0.4))
 ```
 
 
