@@ -138,9 +138,9 @@ sample_info_flfl
 
 ```{r sample_info_flmn}
 sample_info_flmn = data.frame(
-  project_name = c("2022_06", "2022_23", "2022_25", "2022_26", "2022_30"),
-  genotype = c(rep("flmn", 5)),
-  tumor_type = c("dyNF", "dyNF", "MPNST", "MPNST", "MPNST"),
+  project_name = c("2022_06", "2022_25", "2022_26", "2022_30"),
+  genotype = c(rep("flmn", 4)),
+  tumor_type = c("dyNF", "MPNST", "MPNST", "MPNST"),
   gender = "M",
   color = NA,
   origin = "here",

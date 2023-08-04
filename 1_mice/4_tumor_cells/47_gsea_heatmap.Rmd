@@ -300,7 +300,7 @@ make_ht = function(mat_expr) {
 
 We will compute scores for each gene set with `AUCell`. To do so, we compute a gene ranking, for all cells and all genes in the dataset.
 
-```{r aucell_rank}
+```{r aucell_rank, time_it = TRUE}
 gene_expression_matrix = sobj@assays[["RNA"]]@data
 aucell_rank = AUCell::AUCell_buildRankings(exprMat = gene_expression_matrix,
                                            nCores = n_threads, plotStats = FALSE)
@@ -308,7 +308,7 @@ aucell_rank = AUCell::AUCell_buildRankings(exprMat = gene_expression_matrix,
 
 Compute scores :
 
-```{r score_gene_sets}
+```{r score_gene_sets, time_it = TRUE}
 df_scores = AUCell::AUCell_calcAUC(geneSets = gene_sets_list,
                                    rankings = aucell_rank,
                                    nCores = n_threads)

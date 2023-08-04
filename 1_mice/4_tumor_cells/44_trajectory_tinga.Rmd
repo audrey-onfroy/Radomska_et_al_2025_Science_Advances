@@ -161,7 +161,7 @@ my_traj = aquarius::traj_tinga(sobj,
                                dimred_name = traj_dimred,
                                dimred_max_dim = traj_max_dims,
                                root_cell_id = root_cell_id,
-                               tinga_parameters = list(max_nodes = 8))
+                               tinga_parameters = list(max_nodes = 15))
 
 ## Add pseudotime
 sobj$pseudotime = my_traj$pseudotime
