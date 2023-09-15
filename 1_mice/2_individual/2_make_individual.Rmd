@@ -1,6 +1,6 @@
 ---
 params:
-  sample_name: "2022_23"
+  sample_name: "2020_09"
 title: "Mice"
 subtitle: "Sample `r params$sample_name`"
 author: "Audrey"
@@ -81,7 +81,7 @@ knitr::opts_chunk$set(echo = TRUE, # display code
 ```
 
 
-The goal of this script is to generate a Seurat object for sample `r params$sample_name`.
+The goal of this script is to generate a Seurat object from the raw count matrix for sample `r params$sample_name`.
 
 * removal of cells based on quality control metrics
 * normalization with `LogNormalize`, then doublets detection using `scran hybrid` and `scDblFinder` method, and doublet cells removal
@@ -106,19 +106,23 @@ In this section, we set the global settings of the analysis. We will store data 
 
 ```{r out_dir}
 out_dir = "."
+
+if (!dir.exists(paste0(out_dir, "/datasets/"))) {
+  dir.create(paste0(out_dir, "/datasets/"), recursive = TRUE)
+}
 ```
 
 We load the parameters :
 
 ```{r get_param}
 sample_name = params$sample_name
-# sample_name = "2022_23"
 ```
 
 Input count matrix is there :
 
 ```{r count_matrix_dir}
-count_matrix_dir = paste0(out_dir, "/../0_input/", sample_name)
+count_matrix_dir = paste0(out_dir, "/../0_input/", sample_name, "/")
+list.files(count_matrix_dir)
 ```
 
 
@@ -147,7 +151,6 @@ data.frame(cell_type = names(color_markers),
                  axis.text.y = element_blank())
 ```
 
-
 We load markers to display on the dotplot :
 
 ```{r dotplot_markers}
@@ -165,7 +168,7 @@ sample_info %>%
 ```
 
 
-These are settings for functions :
+These is a parameter for different functions :
 
 ```{r global_settings}
 cl = aquarius::create_parallel_instance(nthreads = 3L)
@@ -179,35 +182,19 @@ cut_percent.rb = 30
 
 In this section, we load the raw count matrix. Then, we applied an empty droplets filtering.
 
-```{r load_count_matrix, time_it = TRUE}
+```{r combine_datasets, time_it = TRUE}
 sobj = aquarius::load_sc_data(data_path = count_matrix_dir,
                               sample_name = sample_name,
                               my_seed = 1337L)
 sobj
 ```
 
-We set an upper bound to 20,000 cells. Remaining cells correspond to ambiant RNA.
-
-```{r subset_nb_UMI}
-if (ncol(sobj) > 20000) {
-  sobj$nb_UMI = Seurat::GetAssayData(sobj, assay = "RNA", slot = "counts") %>%
-    Matrix::colSums()
-  
-  thresh_20k = sort(sobj$nb_UMI, decreasing = TRUE)[20000]
-  
-  sobj = subset(sobj, nb_UMI >= thresh_20k)
-  sobj$nb_UMI = NULL
-  
-  sobj
-}
-```
-
-
 In genes metadata, we add the Ensembl ID. The `sobj@assays$RNA@meta.features` dataframe contains three information :
 
-* `rownames` : gene names stored as the dimnames of the count matrix. Duplicated gene names will have a `.1` at the end of their name
-* `Ensembl_ID` : EnsemblID, as stored in the `features.tsv.gz` file
-* `gene_name` : gene_name, as stored in the `features.tsv.gz` file. Duplicated gene names will have the same name.
+* `rownames` : gene names stored as the dimnames of the count matrix. Duplicated gene names will have a .1 at the end of their name
+* `Ensembl_ID` : Ensembl ID, as stored in the `features.tsv.gz` file
+* `gene_name` : gene name, as stored in the `features.tsv.gz` file. Duplicated gene names will have the same name.
+
 
 ```{r features_df}
 features_df = read.csv(paste0(count_matrix_dir, "/features.tsv.gz"), sep = "\t", header = 0)
@@ -221,14 +208,13 @@ rm(features_df)
 head(sobj@assays$RNA@meta.features)
 ```
 
-We add the same columns as in metadata :
+
+We add the sample columns as in metadata :
 
 ```{r add_metadata}
 row_oi = (sample_info$project_name == sample_name)
 
 sobj$project_name = sample_name
-sobj$genotype = sample_info[row_oi, "genotype"]
-sobj$tumor_type = sample_info[row_oi, "tumor_type"]
 sobj$sample_identifier = sample_info[row_oi, "sample_identifier"]
 sobj$sample_type = sample_info[row_oi, "sample_type"]
 
@@ -237,7 +223,7 @@ colnames(sobj@meta.data)
 
 # Before filtering
 
-## Normalization
+## Gene expression normalization
 
 ```{r normalization}
 sobj = Seurat::NormalizeData(sobj,
@@ -276,6 +262,7 @@ sobj = Seurat::RunTSNE(sobj,
 
 sobj
 ```
+
 
 ## Cell type
 
@@ -395,11 +382,12 @@ plot_list[[1]] = Seurat::DimPlot(sobj, group.by = "cyclone.Phase") +
 patchwork::wrap_plots(plot_list, nrow = 1)
 ```
 
-# Quality control
+
+## Quality control
 
 In this section, we look at the number of genes expressed by each cell, the number of UMI, the percentage of mitochondrial genes expressed, and the percentage of ribosomal genes expressed. Then, without taking into account the cells expressing low number of genes or have low number of UMI, we identify doublet cells.
 
-We compute quality metrics :
+We compute four quality metrics :
 
 ```{r qc_metrics}
 sobj = Seurat::PercentageFeatureSet(sobj, pattern = "^mt", col.name = "percent.mt")
@@ -431,14 +419,14 @@ fsobj
 On this filtered dataset, we apply doublet cells detection. Just before, we run the normalization, taking into account only the remaining cells.
 
 ```{r normalization_doublets}
-sobj = Seurat::NormalizeData(sobj,
-                             normalization.method = "LogNormalize",
-                             assay = "RNA")
+fsobj = Seurat::NormalizeData(fsobj,
+                              normalization.method = "LogNormalize",
+                              assay = "RNA")
 
-sobj = Seurat::FindVariableFeatures(sobj,
-                                    assay = "RNA",
-                                    nfeatures = 3000)
-sobj
+fsobj = Seurat::FindVariableFeatures(fsobj,
+                                     assay = "RNA",
+                                     nfeatures = 3000)
+fsobj
 ```
 
 We identify doublet cells :
@@ -727,71 +715,83 @@ aquarius::plot_qc_facslike(df = sobj@meta.data,
 
 ### Visualization as piechart
 
+```{r plot_piechart_df, class.source = "fold-hide"}
+plot_piechart = function(df, ...) {
+  if (nrow(df) > 1) {
+    p = aquarius::plot_piechart(df, ...)
+  } else {
+    p = ggplot2::ggplot()
+  }
+  return(p)
+}
+```
+
+
 Do filtered cells belong to a particular cell type ?
 
 ```{r qc_piechart_cell_type, class.source = "fold-hide", fig.width = 12, fig.height = 9}
 sobj$all_cells = TRUE
 
-piechart_all_cells = aquarius::plot_piechart(df = sobj@meta.data,
-                                             logical_var = "all_cells",
-                                             grouping_var = "cell_type",
-                                             colors = color_markers,
-                                             display_legend = TRUE) +
+piechart_all_cells = plot_piechart(df = sobj@meta.data,
+                                   logical_var = "all_cells",
+                                   grouping_var = "cell_type",
+                                   colors = color_markers,
+                                   display_legend = TRUE) +
   ggplot2::labs(title = "All cells",
                 subtitle = paste(nrow(sobj@meta.data), "cells")) +
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
                  plot.subtitle = element_text(hjust = 0.5))
 
-piechart_doublets = aquarius::plot_piechart(df = sobj@meta.data %>%
-                                              dplyr::filter(doublets_consensus.class),
-                                            logical_var = "all_cells",
-                                            grouping_var = "cell_type",
-                                            colors = color_markers,
-                                            display_legend = TRUE) +
+piechart_doublets = plot_piechart(df = sobj@meta.data %>%
+                                    dplyr::filter(doublets_consensus.class),
+                                  logical_var = "all_cells",
+                                  grouping_var = "cell_type",
+                                  colors = color_markers,
+                                  display_legend = TRUE) +
   ggplot2::labs(title = "doublets_consensus.class",
                 subtitle = paste(sum(sobj$doublets_consensus.class, na.rm = TRUE), "cells")) +
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
                  plot.subtitle = element_text(hjust = 0.5))
 
-piechart_percent.mt = aquarius::plot_piechart(df = sobj@meta.data %>%
-                                                dplyr::filter(percent.mt > cut_percent.mt),
-                                              logical_var = "all_cells",
-                                              grouping_var = "cell_type",
-                                              colors = color_markers,
-                                              display_legend = TRUE) +
+piechart_percent.mt = plot_piechart(df = sobj@meta.data %>%
+                                      dplyr::filter(percent.mt > cut_percent.mt),
+                                    logical_var = "all_cells",
+                                    grouping_var = "cell_type",
+                                    colors = color_markers,
+                                    display_legend = TRUE) +
   ggplot2::labs(title = paste("percent.mt >", cut_percent.mt),
                 subtitle = paste(length(fail_percent.mt), "cells")) +
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
                  plot.subtitle = element_text(hjust = 0.5))
 
-piechart_percent.rb = aquarius::plot_piechart(df = sobj@meta.data %>%
-                                                dplyr::filter(percent.rb > cut_percent.rb),
-                                              logical_var = "all_cells",
-                                              grouping_var = "cell_type",
-                                              colors = color_markers,
-                                              display_legend = TRUE) +
+piechart_percent.rb = plot_piechart(df = sobj@meta.data %>%
+                                      dplyr::filter(percent.rb > cut_percent.rb),
+                                    logical_var = "all_cells",
+                                    grouping_var = "cell_type",
+                                    colors = color_markers,
+                                    display_legend = TRUE) +
   ggplot2::labs(title = paste("percent.rb >", cut_percent.rb),
                 subtitle = paste(length(fail_percent.rb), "cells")) +
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
                  plot.subtitle = element_text(hjust = 0.5))
 
-piechart_log_nCount_RNA = aquarius::plot_piechart(df = sobj@meta.data %>%
-                                                    dplyr::filter(log_nCount_RNA < cut_log_nCount_RNA),
-                                                  logical_var = "all_cells",
-                                                  grouping_var = "cell_type",
-                                                  colors = color_markers,
-                                                  display_legend = TRUE) +
+piechart_log_nCount_RNA = plot_piechart(df = sobj@meta.data %>%
+                                          dplyr::filter(log_nCount_RNA < cut_log_nCount_RNA),
+                                        logical_var = "all_cells",
+                                        grouping_var = "cell_type",
+                                        colors = color_markers,
+                                        display_legend = TRUE) +
   ggplot2::labs(title = paste("log_nCount_RNA <", round(cut_log_nCount_RNA, 2)),
                 subtitle = paste(length(fail_log_nCount_RNA), "cells")) +
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
                  plot.subtitle = element_text(hjust = 0.5))
 
-piechart_nFeature_RNA = aquarius::plot_piechart(df = sobj@meta.data %>%
-                                                  dplyr::filter(nFeature_RNA < cut_nFeature_RNA),
-                                                logical_var = "all_cells",
-                                                grouping_var = "cell_type",
-                                                colors = color_markers,
-                                                display_legend = TRUE) +
+piechart_nFeature_RNA = plot_piechart(df = sobj@meta.data %>%
+                                        dplyr::filter(nFeature_RNA < cut_nFeature_RNA),
+                                      logical_var = "all_cells",
+                                      grouping_var = "cell_type",
+                                      colors = color_markers,
+                                      display_legend = TRUE) +
   ggplot2::labs(title = paste("nFeature_RNA <", round(cut_nFeature_RNA, 2)),
                 subtitle = paste(length(fail_nFeature_RNA), "cells")) +
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold"),
@@ -958,6 +958,7 @@ sobj = subset(sobj, invert = TRUE,
 sobj
 ```
 
+
 ```{r clean_filter, echo = FALSE}
 rm(fail_doublets_consensus, fail_doublets_scDblFinder, fail_doublets_hybrid,
    fail_percent.mt, fail_percent.rb, fail_log_nCount_RNA, fail_nFeature_RNA,
@@ -1015,6 +1016,8 @@ sobj = Seurat::RunUMAP(sobj,
 
 
 ## Annotation
+
+### Cell type
 
 We annotate cells for cell type, with the new normalized expression matrix :
 
@@ -1140,8 +1143,7 @@ plot_list[[1]] = Seurat::DimPlot(sobj, group.by = "cyclone.Phase") +
 patchwork::wrap_plots(plot_list, nrow = 1)
 ```
 
-
-## Clustering
+### Clustering
 
 We make a highly resolutive clustering :
 
