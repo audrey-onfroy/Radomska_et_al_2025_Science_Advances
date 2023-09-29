@@ -1,0 +1,396 @@
+---
+title: "Mice"
+subtitle: "Fibroblasts dataset"
+author: "Audrey"
+date: "`r format(Sys.time(), '%Y-%m-%d')`"
+output:
+  html_document:
+    code_folding: show
+    code_download: true
+    toc: true
+    toc_float: true
+    number_sections: false
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+<!-- Automatically computes and prints in the output the running time for any code chunk -->
+```{r, echo=FALSE}
+# https://github.com/rstudio/rmarkdown/issues/1453
+hooks = knitr::knit_hooks$get()
+hook_foldable = function(type) {
+  force(type)
+  function(x, options) {
+    res = hooks[[type]](x, options)
+    
+    if (isFALSE(options[[paste0("fold_", type)]])) return(res)
+    
+    paste0(
+      "<details><summary>", "show", "</summary>\n\n",
+      res,
+      "\n\n</details>"
+    )
+  }
+}
+knitr::knit_hooks$set(
+  output = hook_foldable("output"),
+  plot = hook_foldable("plot"),
+  time_it = local({
+    now = NULL
+    function(before, options) {
+      if (options$time_it) {
+        if (before) {
+          now <<- Sys.time()
+        } else {
+          res = difftime(Sys.time(), now, units = "secs")
+          paste("(Time to run :", round(res, digits = 2), "s)")
+        }
+      }
+    }
+  })
+)
+```
+
+<!-- Set default parameters for all chunks -->
+```{r, setup, include = FALSE}
+set.seed(1337L)
+knitr::opts_chunk$set(echo = TRUE, # display code
+                      # display chunk output
+                      message = FALSE,
+                      warning = FALSE,
+                      fold_output = FALSE, # usefull for sessionInfo()
+                      fold_plot = FALSE,
+                      
+                      # figure settings
+                      fig.align = 'center',
+                      fig.width = 20,
+                      fig.height = 15,
+                      
+                      # something about seed, chunk and Rmarkdown compilation
+                      # https://stackoverflow.com/questions/39417003/long-vectors-not-supported-yet-error-in-rmd-but-not-in-r-script
+                      # cache = TRUE,
+                      cache.lazy = FALSE, 
+                      
+                      # add runtime after chunk
+                      time_it = FALSE)
+```
+
+The goal of this script is to run analysis the fibroblasts dataset, to understand differences between pNF fibroblasts and dyNF fibroblasts.
+
+```{r library}
+library(patchwork)
+library(ggplot2)
+library(dplyr)
+
+.libPaths()
+```
+
+# Preparation
+
+In this section, we set the global settings of the analysis. We will store data there :
+
+```{r out_dir}
+save_name = "mice_fibroblasts"
+out_dir = "."
+n_threads = 3 # for tSNE
+percent_mt_thresh = 7
+```
+
+We load the fibroblasts dataset :
+
+```{r load_sobj}
+sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj.rds"))
+name2D = "mnn_44_umap"
+
+sobj
+```
+
+
+We load the sample information :
+
+```{r custom_palette_sample, fig.width = 8, fig.height = 8}
+sample_info = readRDS(paste0(out_dir, "/../1_metadata/mice_sample_info.rds"))
+sample_info = sample_info %>%
+  dplyr::filter(project_name %in% unique(sobj$project_name)) %>%
+  base::droplevels()
+
+graphics::pie(rep(1, nrow(sample_info)),
+              col = sample_info$color,
+              labels = sample_info$project_name)
+```
+
+Here are custom colors for each cell type :
+
+```{r color_markers, fig.width = 10, fig.height = 1, class.source = "fold-hide"}
+color_markers = readRDS(paste0(out_dir, "/../1_metadata/mice_color_markers.rds"))
+
+data.frame(cell_type = names(color_markers),
+           color = unlist(color_markers)) %>%
+  ggplot2::ggplot(., aes(x = cell_type, y = 0, fill = cell_type)) +
+  ggplot2::geom_point(pch = 21, size = 5) +
+  ggplot2::scale_fill_manual(values = unlist(color_markers), breaks = names(color_markers)) +
+  ggplot2::theme_classic() +
+  ggplot2::theme(legend.position = "none",
+                 axis.line = element_blank(),
+                 axis.title = element_blank(),
+                 axis.ticks = element_blank(),
+                 axis.text.y = element_blank())
+```
+
+# Visualization
+
+## Global
+
+We visualize clustering and sample on the projection :
+
+```{r see_sobj, fig.width = 9, fig.height = 5}
+project_name = Seurat::DimPlot(sobj, group.by = "project_name",
+                               reduction = name2D) +
+  ggplot2::scale_color_manual(values = sample_info$color,
+                              breaks = sample_info$project_name) +
+  Seurat::NoAxes() + ggplot2::ggtitle("Sample of origin") +
+  ggplot2::theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5),
+                 legend.position = "none")
+
+clusters = Seurat::DimPlot(sobj, group.by = "seurat_clusters",
+                           reduction = name2D, label = TRUE) +
+  Seurat::NoLegend() +
+  Seurat::NoAxes() + ggplot2::ggtitle("Clsuters ID") +
+  ggplot2::theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5))
+
+project_name | clusters
+```
+
+We visualize quality-related metrics :
+
+```{r see_qc, fig.width = 15, fig.height = 4}
+plot_list = lapply(c("nFeature_RNA", "log_nCount_RNA", "percent.mt", "percent.rb"),
+                   FUN = function(one_metric) {
+                     p = Seurat::FeaturePlot(sobj, features = one_metric, reduction = name2D) +
+                       ggplot2::theme(aspect.ratio = 1) +
+                       Seurat::NoAxes() +
+                       ggplot2::scale_color_gradientn(colors  = aquarius::color_gene)
+                     return(p)
+                   })
+
+patchwork::wrap_plots(plot_list, nrow = 1)
+```
+
+dyNF-associated fibroblasts express much more genes than in pNF.
+
+```{r vln_feature, fig.width = 8, fig.height = 5}
+Seurat::VlnPlot(sobj, features = "nFeature_RNA", pt.size = 0.5,
+                group.by = "sample_identifier") +
+  ggplot2::scale_fill_manual(values = sample_info$color) +
+  Seurat::NoLegend() +
+  ggplot2::theme(axis.title.x = element_blank())
+```
+
+
+## Gene expression
+
+We will look those genes :
+
+```{r fibroblats_gene}
+peri = c("Sfrp5", "Itgb4", "Wnt6", "Lypd2", "Krt19", "Cav2", "Slc6a13",
+         "Stxbp6", "Sdpr", "Foxd1", "Tenm2", "Mustn1", "Moxd1", "Plcd3", "Frmd4b")
+epi = c("Clec3b", "Gdf10", "Dpt", "Pcolce2", "Ly6c1", "Comp", "Bmp4",
+        "Gpnmb", "Clec11a", "Cfh", "Ogn", "Fbln7", "Fmod", "Crispld2",
+        "Cxcl13", "Dpp4", "Cd55", "Adamts5", "Cd248")
+endo = c("Enpp2", "Fam213a", "Myoc", "Cyp26b1", "Aspa", "P2ry14", "Nipal1",
+         "Nt5e", "Mylk", "Cdh19", "Atp1a2", "Jam2", "Acot1", "Kif21a",
+         "Foxd1", "1500009L16Rik", "Hlf", "Sox8", "Ptx3")
+caf = c("Pdpn", "S100a4", "Fap", "Itgb1", "Acta2", "Pdgfrb", "Pdgfra",
+        "Des", "Fbln1", "Clu", "Thy1", "Cav1", "Mme", "C5ar2")
+```
+
+### pNF fibroblasts
+
+We make the plot for **epineurial**, **endoneurial** and **perineurial** fibroblasts :
+
+```{r plot_genes_epi_peri_endo, fig.width = 12, fig.height = 18}
+plot_list = lapply(c(peri, epi, endo),
+                   FUN = function(one_gene) {
+                     p = Seurat::FeaturePlot(sobj, features = one_gene, reduction = name2D) +
+                       ggplot2::theme(aspect.ratio = 1) +
+                       Seurat::NoAxes() +
+                       ggplot2::scale_color_gradientn(colors  = aquarius::color_gene)
+                     return(p)
+                   })
+
+patchwork::wrap_plots(plot_list, ncol = 6)
+```
+
+### dyNF fibroblasts
+
+#### CAFs
+
+Markers publication source : [https://onlinelibrary.wiley.com/doi/full/10.1111/cas.14537](https://onlinelibrary.wiley.com/doi/full/10.1111/cas.14537)
+
+```{r plot_genes_caf, fig.width = 8, fig.height = 8}
+plot_list = lapply(caf,
+                   FUN = function(one_gene) {
+                     p = Seurat::FeaturePlot(sobj, features = one_gene, reduction = name2D) +
+                       ggplot2::theme(aspect.ratio = 1) +
+                       Seurat::NoAxes() +
+                       ggplot2::scale_color_gradientn(colors  = aquarius::color_gene)
+                     return(p)
+                   })
+
+patchwork::wrap_plots(plot_list, ncol = 4)
+```
+
+#### Repair FB
+
+Markers publication source : [https://www.cell.com/cell-stem-cell/pdf/S1934-5909(18)30535-6.pdf](https://www.cell.com/cell-stem-cell/pdf/S1934-5909(18)30535-6.pdf)
+Postn has been identified by DE within this published dataset.
+
+```{r plot_genes_repair, fig.width = 8, fig.height = 8}
+plot_list = lapply(c("Dlk1", "Tnc", "Plagl1", "Mest",          # from publication
+                     "Bmpr1b", "Cilp", "Runx2", "Ptn", "Sox9",  # from publication
+                     "Postn"), # own analysis
+                   FUN = function(one_gene) {
+                     p = Seurat::FeaturePlot(sobj, features = one_gene,
+                                             reduction = name2D, pt.size = 0.5) +
+                       ggplot2::theme(aspect.ratio = 1) +
+                       Seurat::NoAxes() +
+                       ggplot2::scale_color_gradientn(colors  = aquarius::color_gene)
+                     return(p)
+                   })
+
+patchwork::wrap_plots(plot_list, ncol = 3)
+```
+
+
+# Differential expression
+
+We identify DE genes between pNF and dyNF :
+
+```{r mark}
+Seurat::Idents(sobj) = sobj$tumor_type
+mark = Seurat::FindMarkers(sobj, ident.1 = "pNF")
+mark$diff = abs(mark$pct.1 - mark$pct.2)
+
+mark = mark %>% dplyr::arrange(-diff)
+
+mark %>%
+  dplyr::top_n(., n = 40, wt = diff) %>%
+  dplyr::arrange(avg_logFC)
+```
+
+We set markers for dyNF-associated fibroblasts :
+
+```{r dynf_markers}
+dynf_markers = mark %>%
+  dplyr::filter(pct.1 < 0.3 & pct.2 > 0.7) %>%
+  dplyr::top_n(., n = 20, wt = -avg_logFC) %>%
+  rownames()
+```
+
+We visualize those markers :
+
+```{r plot_dynf_markers, fig.width = 12, fig.height = 8}
+plot_list = lapply(dynf_markers,
+                   FUN = function(one_gene) {
+                     p = Seurat::FeaturePlot(sobj, features = one_gene,
+                                             reduction = name2D, pt.size = 0.5) +
+                       ggplot2::theme(aspect.ratio = 1) +
+                       Seurat::NoAxes() +
+                       ggplot2::scale_color_gradientn(colors  = aquarius::color_gene)
+                     return(p)
+                   })
+
+patchwork::wrap_plots(plot_list, ncol = 5)
+```
+
+
+# Fibroblast subtypes annotation
+
+We run a cell type annotation pipeline :
+
+```{r annotation}
+sobj = aquarius::cell_annot_custom(sobj,
+                                   newname = "FB_type",
+                                   markers = list("periFb" = peri,
+                                                  "endoFb" = endo,
+                                                  "epiFb" = epi,
+                                                  "CAF" = dynf_markers),
+                                   use_negative = TRUE,
+                                   add_score = TRUE,
+                                   verbose = TRUE)
+```
+
+We define colors for fibroblast subpopulations :
+
+```{r color_fibro}
+color_fibro = setNames(aquarius::c30_palette[c(4, 19, 18, 23) + 1],
+                       nm = c("endoFb", "epiFb", "periFb", "CAF"))
+color_fibro
+```
+
+
+We can visualize this :
+
+```{r FB_type, fig.width = 12, fig.height = 6}
+plot_list = lapply(grep(colnames(sobj@meta.data), pattern = "^score", value = TRUE),
+                   FUN = function(one_gene) {
+                     p = Seurat::FeaturePlot(sobj, features = one_gene,
+                                             reduction = name2D, pt.size = 0.5) +
+                       ggplot2::theme(aspect.ratio = 1) +
+                       Seurat::NoAxes() +
+                       ggplot2::scale_color_gradientn(colors  = aquarius::color_gene)
+                     return(p)
+                   })
+plot_list[[length(plot_list) + 1]] = Seurat::DimPlot(sobj, group.by = "FB_type",
+                                                     cols = color_fibro,
+                                                     reduction = name2D) +
+  ggplot2::labs(title = "Fibroblast annotation") +
+  ggplot2::theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5),
+                 legend.position = "top",
+                 legend.justification = "center",
+                 legend.direction = "horizontal") +
+  Seurat::NoAxes()
+
+patchwork::wrap_plots(plot_list) +
+  patchwork::plot_layout(design = "EEAB\nEECD")
+```
+
+What is the proportion of fibroblast type, by tumor type ?
+
+```{r barplot_FB_type, fig.width = 5, fig.height = 6}
+df_prop = table(sobj$FB_type,
+                sobj$tumor_type) %>%
+  as.data.frame.table() %>%
+  `colnames<-`(c("FB_type", "tumor_type", "nb_cells"))
+
+aquarius::plot_barplot(df_prop,
+                       x = "tumor_type",
+                       y = "nb_cells",
+                       fill = "FB_type",
+                       position = ggplot2::position_fill()) +
+  ggplot2::scale_fill_manual(values = color_fibro,
+                             breaks = names(color_fibro))
+```
+
+
+# Save
+
+We save this object :
+
+```{r save_sobj, fig.width = 12, fig.height = 12}
+saveRDS(sobj, file = paste0(out_dir, "/", save_name, "_annotated_sobj.rds"))
+```
+
+
+# R Session
+
+```{r sessioninfo, echo = FALSE, fold_output = TRUE}
+sessionInfo()
+```
+

@@ -107,6 +107,9 @@ We load the sample information :
 
 ```{r custom_palette_sample, fig.width = 8, fig.height = 8}
 sample_info = readRDS(paste0(out_dir, "/../1_metadata/mice_sample_info.rds"))
+sample_info = sample_info %>%
+  dplyr::filter(genotype == "flfl") %>%
+  base::droplevels()
 project_names_oi = sample_info$project_name
 
 graphics::pie(rep(1, nrow(sample_info)),
@@ -117,7 +120,7 @@ graphics::pie(rep(1, nrow(sample_info)),
 We load the Seurat object :
 
 ```{r load_sobj}
-sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj_traj_slingshot.rds"))
+sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj_traj_tinga.rds"))
 sobj
 ```
 
@@ -2209,7 +2212,7 @@ gsea_results@result %>%
 We save the Seurat object, containing cluster ID.
 
 ```{r save_sobj}
-saveRDS(sobj, file = paste0(out_dir, "/", save_name, "_sobj_traj_slingshot_FE.rds"))
+saveRDS(sobj, file = paste0(out_dir, "/", save_name, "_sobj_traj_tinga_FE.rds"))
 ```
 
 We save the `list_results` object :

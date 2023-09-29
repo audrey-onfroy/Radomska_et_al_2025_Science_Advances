@@ -96,7 +96,7 @@ In this section, we set the global settings of the analysis. We will store data 
 save_name = "mice_tumor_cells_subset"
 out_dir = "."
 n_threads = 3 # for tSNE
-percent_mt_thresh = 7
+percent_mt_thresh = 10
 ```
 
 

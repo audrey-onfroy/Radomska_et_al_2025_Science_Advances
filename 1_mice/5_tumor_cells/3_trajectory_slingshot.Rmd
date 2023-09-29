@@ -102,7 +102,10 @@ We load the sample information :
 
 ```{r custom_palette_sample, fig.width = 8, fig.height = 8}
 sample_info = readRDS(file = paste0(out_dir, "/../1_metadata/mice_sample_info.rds"))
-project_names_oi = as.character(sample_info$project_name)
+sample_info = sample_info %>%
+  dplyr::filter(genotype == "flfl") %>%
+  base::droplevels()
+project_names_oi = sample_info$project_name
 
 graphics::pie(rep(1, nrow(sample_info)),
               col = sample_info$color,
@@ -125,43 +128,116 @@ sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj.rds"))
 sobj
 ```
 
-We visualize clusters :
+We make a highly resolutive clustering to set a root cluster in pNF sample for trajectory :
 
-```{r see_clusters, fig.width = 8, fig.height = 8}
-Seurat::DimPlot(sobj, group.by = "seurat_clusters",
-                label = TRUE, reduction = traj_umap) +
+```{r clustering}
+sobj = Seurat::FindNeighbors(sobj, reduction = "mnn_dm", dims = c(1:7))
+sobj = Seurat::FindClusters(sobj, resolution = 2)
+```
+
+
+We visualize clusters and sample of origin :
+
+```{r dimplot, fig.width = 12, fig.height = 5}
+sample_of_origin = Seurat::DimPlot(sobj,
+                                   group.by = "project_name",
+                                   reduction = traj_umap) +
+  ggplot2::scale_color_manual(values = sample_info$color,
+                              breaks = sample_info$sample_identifiant) +
+  ggplot2::labs(title = "Sample of origin") +
+  ggplot2::theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+  Seurat::NoAxes()
+
+clusters = Seurat::DimPlot(sobj, group.by = "seurat_clusters",
+                           label = TRUE, reduction = traj_umap) +
+  ggplot2::labs(title = "Clusters") +
   Seurat::NoLegend() + Seurat::NoAxes() +
-  ggplot2::theme(aspect.ratio = 1)
+  ggplot2::theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5, face = "bold"))
+
+sample_of_origin | clusters
 ```
 
-We set the root in the pNF cluster :
+We set the root in the cluster expressing highest level of Pde4b gene.
 
-```{r pNF_cluster}
-pNF_cluster = 12
+```{r Pde4b_avg}
+root_cluster = data.frame(Pde4b_level = Seurat::FetchData(sobj, vars = "Pde4b", slot = "data")[, 1],
+                          clusters = sobj$seurat_clusters) %>%
+  dplyr::group_by(clusters) %>%
+  dplyr::summarise(Pde4b_avg = mean(Pde4b_level)) %>%
+  dplyr::filter(Pde4b_avg == max(Pde4b_avg)) %>%
+  dplyr::pull(clusters) %>%
+  as.character()
+
+nb_clusters = length(levels(sobj$seurat_clusters))
+root_color = aquarius::gg_color_hue(n = nb_clusters)[as.numeric(root_cluster)]
+cluster_colors = setNames(nm = levels(sobj$seurat_clusters),
+                          rep("gray80", nb_clusters))
+cluster_colors[root_cluster] = "red"
+
+root_cluster
 ```
 
+We visualize root cluster and Pde4b expression levels :
 
+```{r see_root, fig.width = 12, fig.height = 5}
+gene_expr = Seurat::FeaturePlot(sobj, features = "Pde4b", reduction = traj_umap) +
+  ggplot2::scale_color_gradientn(colors  = aquarius::color_gene) +
+  ggplot2::theme(aspect.ratio = 1) +
+  Seurat::NoAxes()
 
+root_plot = clusters = Seurat::DimPlot(sobj, group.by = "seurat_clusters",
+                                       cols = cluster_colors,
+                                       label = TRUE, reduction = traj_umap) +
+  ggplot2::labs(title = "Root cluster") +
+  Seurat::NoLegend() + Seurat::NoAxes() +
+  ggplot2::theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5, face = "bold"))
+
+gene_expr | root_plot
+```
 
 # Trajectory inference
 
-We perform the trajectory inference :
+We perform the trajectory inference, from a pNF sample :
 
 ```{r slingshot, cache = FALSE, time_it = TRUE}
 input_data = sobj@reductions[[traj_dimred]]@cell.embeddings[, c(1:traj_max_dims)]
 
 my_traj = slingshot::slingshot(data = input_data,
                                clusterLabels = sobj$seurat_clusters,
-                               start.clus = pNF_cluster)
+                               start.clus = root_cluster)
 my_traj
 
 ## Add pseudotime
-sobj$pseudotime = slingshot::slingPseudotime(my_traj)[, 2][colnames(sobj)]
+all_pdt = slingshot::slingPseudotime(my_traj)
+sobj$pseudotime = all_pdt[, 1][colnames(sobj)]
+```
+
+We visualize all pseudotimes :
+
+```{r see_pdts, fig.width = 12, fig.height = 10}
+plot_list = lapply(c(1:ncol(all_pdt)), FUN = function(lineage) {
+  sobj$pseudotime = all_pdt[, lineage][colnames(sobj)]
+  
+  p = Seurat::FeaturePlot(sobj, features = "pseudotime",
+                    reduction = traj_umap,
+                    cols = viridis::viridis(n = 100)) +
+  ggplot2::ggtitle(paste0("Pseudotime ", lineage)) +
+  ggplot2::theme(aspect.ratio = 1,
+                 plot.title = element_text(hjust = 0.5)) +
+  Seurat::NoAxes()
+  
+  return(p)
+})
+
+patchwork::wrap_plots(plot_list)
 ```
 
 # Visualization
 
-We visualize pseudotime :
+We visualize retained pseudotime :
 
 ```{r pseudotime1, fig.width = 8, fig.height = 8}
 Seurat::FeaturePlot(sobj, features = "pseudotime",
