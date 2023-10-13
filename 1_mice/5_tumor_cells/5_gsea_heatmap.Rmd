@@ -117,7 +117,7 @@ We load the Seurat object :
 
 ```{r load_sobj}
 save_name = "mice_tumor_cells_subset"
-sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj_traj_slingshot_FE.rds"))
+sobj = readRDS(paste0(out_dir, "/", save_name, "_sobj_traj_tinga_FE.rds"))
 sobj
 ```
 
@@ -216,10 +216,10 @@ sobj@meta.data[, cell_annot_2] = factor(sobj@meta.data[, cell_annot_2],
 ## Colors
 list_colors = list()
 
-list_colors[["clusters"]] = aquarius::c30_palette[c(1:length(unique(sobj@meta.data[, cell_annot_1])))]
+list_colors[["clusters"]] = aquarius::c30_palette[c(1:length(levels(sobj@meta.data[, cell_annot_1])))]
 names(list_colors[["clusters"]]) = levels(sobj@meta.data[, cell_annot_1])
 
-list_colors[["groups"]] = aquarius::c30_palette[c(1:length(unique(sobj@meta.data[, cell_annot_2])))]
+list_colors[["groups"]] = aquarius::c30_palette[c(1:length(levels(sobj@meta.data[, cell_annot_2])))]
 names(list_colors[["groups"]]) = levels(sobj@meta.data[, cell_annot_2])
 
 list_colors[["expression"]] = rev(RColorBrewer::brewer.pal(name = "RdBu", n = 9))
@@ -312,9 +312,23 @@ Compute scores :
 df_scores = AUCell::AUCell_calcAUC(geneSets = gene_sets_list,
                                    rankings = aucell_rank,
                                    nCores = n_threads)
-rownames(df_scores) = names(gene_sets_list)
 df_scores = AUCell::getAUC(df_scores) # AUCell object to scores matrix (features x cells)
 ```
+
+There are missing gene sets :
+
+```{r missing_gene_sets}
+names(gene_sets_list)[!(names(gene_sets_list) %in% rownames(df_scores))]
+```
+
+We remove them :
+
+```{r sub_gene_sets_list}
+gene_sets_list = gene_sets_list[rownames(df_scores)]
+
+length(gene_sets_list) == nrow(df_scores)
+```
+
 
 
 ## Identify a gene set order

@@ -1,6 +1,6 @@
 ---
 title: "Figures for the paper"
-subtitle: "Version 17"
+subtitle: "Version 18"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -324,13 +324,26 @@ dotplot_markers = readRDS(paste0(mouse_dir, "/1_metadata/mice_dotplot_markers.rd
 names(dotplot_markers) = names(color_markers)
 ```
 
+For the dotplot, we merge the three DC populations :
+
+```{r merge_dotplot_markers}
+dotplot_markers[["DC"]] = dotplot_markers[c("pDC", "mDC", "cDC")] %>%
+  unlist() %>% unname()
+dotplot_markers
+```
+
+
+
+
 We are going to make barplot with cell type and associated cell family. This are settings for cell families representation :
 
 ```{r custom_order_cell_type}
 custom_order_cell_type = data.frame(
-  cell_type = c("pDC", "mDC", "cDC", "mast cells", "neutrophils",
+  cell_type = c("DC", "DC", "DC", "mast cells", "neutrophils",
                 "B cells", "NK cells", "T cells", "M\U03A6/Mo", "skeletal muscle cells",
                 "mural cells", "endothelial cells", "fibroblasts", "TOM+ cells"),
+  cell_type_simple = c(rep("other immune cells", 7), "T cells", "M\U03A6/Mo",
+                       rep("other stromal cells", 3), "fibroblasts", "TOM+ cells"),
   cell_type_old = c("pDC", "mDC", "cDC", "mast cells", "neutrophils",
                     "B cells", "NK cells", "T cells", "macrophages", "skeletal muscle cells",
                     "mural cells", "endothelial cells", "fibroblasts", "tumor cells"),
@@ -338,13 +351,32 @@ custom_order_cell_type = data.frame(
                   rep("stromal cells", 4),
                   rep("tumor cells", 1)),
   stringsAsFactors = FALSE)
-rownames(custom_order_cell_type) = custom_order_cell_type$cell_type
+rownames(custom_order_cell_type) = custom_order_cell_type$cell_type_old
 
 family_color = c("immune cells" = "gray90",
                  "stromal cells" = "gray50",
                  "tumor cells" = "gray0")
 ```
 
+We define colors for simple cell type :
+
+```{r color_markers_simple}
+color_markers_simple = setNames(
+  nm = c("other immune cells", "T cells", "M\U03A6/Mo",
+         "other stromal cells", "fibroblasts", "TOM+ cells"),
+  c("pink", unlist(color_markers[c("T cells", "M\U03A6/Mo")]),
+    "gray70", unlist(color_markers[c("fibroblasts", "TOM+ cells")])))
+color_markers_simple
+```
+
+
+We change fl/- MPNST tumors colors to purple shades :
+
+```{r flmn_colors}
+bool_flmn = sample_info$genotype == "flmn"
+sample_info[bool_flmn, "color"] = colorRampPalette(c("violetred1", "violetred3"))(sum(bool_flmn))
+rm(bool_flmn)
+```
 
 ## MPNST atlas
 
@@ -402,11 +434,24 @@ sobj$cell_type = ifelse(sobj$cell_type == "skeletal muscle cells",
 We change the levels of `cell_type`, for the figures legend to be in a nice order.
 
 ```{r change_levels_mpnst}
+sobj$cell_type_old = sobj$cell_type
 sobj$cell_type = sobj$cell_type %>%
   as.character() %>%
   factor(., levels = custom_order_cell_type$cell_type_old) %>%  # reorder cell type
   `levels<-`(custom_order_cell_type$cell_type)                  # change level names
+
+sobj$cell_type_simple = custom_order_cell_type[as.character(sobj$cell_type_old), "cell_type_simple"]
+sobj$cell_type_simple = factor(sobj$cell_type_simple,
+                               levels = names(color_markers_simple))
 ```
+
+We modify color markers to merge DC :
+
+```{r color_markers}
+color_markers = color_markers[!(names(color_markers) %in% c("cDC", "pDC"))]
+names(color_markers)[names(color_markers) == "mDC"] = "DC"
+```
+
 
 ### Cell type composition
 
@@ -432,7 +477,7 @@ aquarius::fig_plot_dimplot(sobj, reduction_tsne, "cell_type",
 
 This figure represent cell types annotation split by genotype :
 
-```{r fig3_A1_split_grey, class.source = 'fold-hide', fig.width = 12, fig.height = 5}
+```{r fig3_A1_split, class.source = 'fold-hide', fig.width = 12, fig.height = 5}
 plot_list = aquarius::plot_split_dimred(sobj,
                                         reduction = reduction_tsne,
                                         split_by = "genotype",
@@ -446,6 +491,31 @@ patchwork::wrap_plots(plot_list, nrow = 1) +
   ggplot2::guides(color = guide_legend(override.aes = list(size = 3),
                                        title = "Cell type"))
 ```
+
+We make also the figures for simple cell type :
+
+```{r fig3_A1_simple, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
+aquarius::fig_plot_dimplot(sobj, reduction_tsne, "cell_type_simple",
+                           color_markers_simple, title = "MPNST atlas", order = "TOM+ cells")
+```
+
+This figure represent cell types annotation split by genotype :
+
+```{r fig3_A1_split_simple, class.source = 'fold-hide', fig.width = 12, fig.height = 5}
+plot_list = aquarius::plot_split_dimred(sobj,
+                                        reduction = reduction_tsne,
+                                        split_by = "genotype",
+                                        group_by = "cell_type_simple",
+                                        group_color = unlist(color_markers_simple),
+                                        main_pt_size = 0.1,
+                                        bg_pt_size = 0.1)
+
+patchwork::wrap_plots(plot_list, nrow = 1) +
+  patchwork::plot_layout(guides = "collect") &
+  ggplot2::guides(color = guide_legend(override.aes = list(size = 3),
+                                       title = "Cell type"))
+```
+
 
 This figure represent Tomato expression to justify tumor cells annotation.
 
@@ -488,21 +558,8 @@ plot_list[[1]] = Seurat::DimPlot(sobj,
   ggplot2::theme(legend.position = "right",
                  legend.direction = "vertical")
 
-## Sample of origin with rainbow colors
-plot_list[[2]] = Seurat::DimPlot(sobj,
-                                 group.by = "orig.ident",
-                                 reduction = reduction_tsne,
-                                 order = cells_id) +
-  ggplot2::scale_color_manual(values = aquarius::c30_palette[c(1:6,16)],
-                              breaks = levels(sobj$orig.ident)) +
-  ggplot2::labs(title = "Sample of origin") +
-  ggplot2::guides(col = guide_legend(ncol = 1, title = "Sample name",
-                                     override.aes = list(size = 2))) +
-  ggplot2::theme(legend.position = "right",
-                 legend.direction = "vertical")
-
 ## Cell cycle
-plot_list[[3]] = Seurat::DimPlot(sobj,
+plot_list[[2]] = Seurat::DimPlot(sobj,
                                  group.by = "Seurat.Phase",
                                  reduction = reduction_tsne) +
   ggplot2::scale_color_manual(values = aquarius::gg_color_hue(3),
@@ -514,7 +571,7 @@ plot_list[[3]] = Seurat::DimPlot(sobj,
   ggplot2::guides(col = guide_legend(override.aes = list(size = 1.5)))
 
 ## Mitochondrial genes expression
-plot_list[[4]] = Seurat::FeaturePlot(sobj,
+plot_list[[3]] = Seurat::FeaturePlot(sobj,
                                      features = "percent.mt",
                                      reduction = reduction_tsne) +
   ggplot2::scale_color_gradientn(colors = aquarius::color_gene,
@@ -537,32 +594,14 @@ plot_list = lapply(plot_list, FUN = function(one_plot) {
 plot_list
 ```
 
-For barplot, we merge all DC populations into one :
-
-```{r cell_type_barplot_mpnst}
-sobj$cell_type_barplot = ifelse(sobj$cell_type %in% c("cDC", "pDC", "mDC"),
-                                yes = "DC",
-                                no = as.character(sobj$cell_type))
-sobj$cell_type_barplot = factor(
-  sobj$cell_type_barplot,
-  levels = stringr::str_replace_all(
-    string = levels(sobj$cell_type),
-    pattern = "cDC|pDC|mDC",
-    replacement = "DC") %>% unique())
-
-color_markers_bp = color_markers
-color_markers_bp = color_markers_bp[!(names(color_markers_bp) %in% c("cDC", "pDC"))]
-names(color_markers_bp)[names(color_markers_bp) == "mDC"] = "DC"
-```
-
 This barplot represents the composition of each dataset in cell populations :
 
 ```{r fig_supp_mpnst_barplot, class.source = 'fold-hide', fig.width = 7, fig.height = 6}
 df_proportion = table(sobj$sample_identifier,
-                      sobj$cell_type_barplot) %>%
+                      sobj$cell_type_simple) %>%
   prop.table(., margin = 1) %>%
   as.data.frame.table() %>%
-  `colnames<-`(c("sample_identifier", "cell_type_barplot", "prop_cells")) %>%
+  `colnames<-`(c("sample_identifier", "cell_type_simple", "prop_cells")) %>%
   dplyr::left_join(., y = sample_info, by = "sample_identifier")
 
 plot_content = sample_info %>%
@@ -575,13 +614,13 @@ plot_list = lapply(names(plot_content), FUN = function(st) {
     aquarius::plot_barplot(.,
                            x = "sample_identifier",
                            y = "prop_cells",
-                           fill = "cell_type_barplot",
+                           fill = "cell_type_simple",
                            position = ggplot2::position_fill()) +
-    ggplot2::scale_fill_manual(values = color_markers_bp,
-                               breaks = names(color_markers_bp),
+    ggplot2::scale_fill_manual(values = color_markers_simple,
+                               breaks = names(color_markers_simple),
                                name = "Cell type") +
     ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
-                                labels = paste0(seq(0, 100, by = 10), sep = " %"),
+                                labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
                                 expand = c(0,0)) +
     ggplot2::theme(axis.title.y = ggplot2::element_blank(),
                    axis.line.x = ggplot2::element_line(colour = "lightgray"),
@@ -614,10 +653,10 @@ Same plot group by genotype :
 
 ```{r fig3_C, class.source = 'fold-hide', fig.width = 4.5, fig.height = 5.5}
 df_proportion = table(sobj$sample_type,
-                      sobj$cell_type_barplot) %>%
+                      sobj$cell_type_simple) %>%
   prop.table(., margin = 1) %>%
   as.data.frame.table() %>%
-  `colnames<-`(c("sample_type", "cell_type_barplot", "prop_cells"))
+  `colnames<-`(c("sample_type", "cell_type_simple", "prop_cells"))
 
 plot_content = sample_info %>%
   dplyr::pull(sample_type) %>% table()
@@ -629,13 +668,13 @@ plot_list = lapply(names(plot_content), FUN = function(st) {
     aquarius::plot_barplot(.,
                            x = "sample_type",
                            y = "prop_cells",
-                           fill = "cell_type_barplot",
+                           fill = "cell_type_simple",
                            position = ggplot2::position_fill()) +
-    ggplot2::scale_fill_manual(values = color_markers_bp,
-                               breaks = names(color_markers_bp),
+    ggplot2::scale_fill_manual(values = color_markers_simple,
+                               breaks = names(color_markers_simple),
                                name = "Cell type") +
     ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
-                                labels = paste0(seq(0, 100, by = 10), sep = " %"),
+                                labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
                                 expand = c(0,0)) +
     ggplot2::theme(axis.title.y = ggplot2::element_blank(),
                    axis.line.x = ggplot2::element_line(colour = "lightgray"),
@@ -722,8 +761,8 @@ gb2 = data.frame(cell_family = c("immune cells", "stromal cells", "tumor cells")
 
 # Merge
 gb = gridExtra::gtable_combine(gb2,gb1, along = 1)
-gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 11, 15, 2, 11, 15)
-gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(10, 14, 15, 10, 14, 15)
+gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 9, 13, 2, 9, 13)
+gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(8, 12, 13, 8, 12, 13)
 
 # Patchwork
 title_gg = ggplot2::ggplot() +
@@ -733,6 +772,24 @@ patchwork::wrap_plots(list(title_gg, gb)) +
   patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
 ```
+
+We save an Excel file with the proportion of cells by cell type and by sample :
+
+```{r excel_df_quantities_mpnst}
+df_quantities = table(sobj$cell_type,
+                      sobj$sample_identifier) %>%
+  prop.table(., margin = 2) %>%
+  "*"(100) %>% round(., 2) %>%
+  as.data.frame.array(stringAsFactors = FALSE) %>%
+  dplyr::mutate(cell_type = rownames(.)) %>%
+  dplyr::relocate(cell_type)
+df_quantities$nb_cells = rowSums(table(sobj$cell_type, sobj$sample_identifier))
+df_quantities = rbind(df_quantities,
+                      c("Number of cells", as.numeric(table(sobj$sample_identifier)), ncol(sobj)))
+
+openxlsx::write.xlsx(df_quantities, file = "./mpnst_cell_quantities.xlsx")
+```
+
 
 ## fl/fl atlas
 
@@ -799,16 +856,21 @@ sobj_full$cell_type = ifelse(sobj_full$cell_type == "skeletal muscle cells",
 We change the levels of `cell_type`, for the figures legend to be in a nice order.
 
 ```{r change_levels_mouse}
+sobj_full$cell_type_old = sobj_full$cell_type
 sobj_full$cell_type = sobj_full$cell_type %>%
   as.character() %>%
   factor(., levels = custom_order_cell_type$cell_type_old) %>%  # reorder cell type
   `levels<-`(custom_order_cell_type$cell_type)                  # change level names
+
+sobj_full$cell_type_simple = custom_order_cell_type[as.character(sobj_full$cell_type_old), "cell_type_simple"]
+sobj_full$cell_type_simple = factor(sobj_full$cell_type_simple,
+                                    levels = names(color_markers_simple))
 ```
 
 We add a `cell_family` columns in metadata :
 
 ```{r sobj_cell_family}
-sobj_full$cell_family = custom_order_cell_type[sobj_full$cell_type, "cell_family"]
+sobj_full$cell_family = custom_order_cell_type[as.character(sobj_full$cell_type_old), "cell_family"]
 ```
 
 ### Cell type composition
@@ -834,7 +896,7 @@ aquarius::fig_plot_dimplot(sobj_full, reduction_tsne, "cell_type", color_markers
 
 This figure represent cell types annotation split by tumor type :
 
-```{r fig4_A1_split_grey, class.source = 'fold-hide', fig.width = 12, fig.height = 5}
+```{r fig4_A1_split, class.source = 'fold-hide', fig.width = 12, fig.height = 5}
 plot_list = aquarius::plot_split_dimred(sobj_full,
                                         reduction = reduction_tsne,
                                         split_by = "tumor_type",
@@ -848,6 +910,30 @@ patchwork::wrap_plots(plot_list, nrow = 1) +
   ggplot2::guides(color = guide_legend(override.aes = list(size = 3),
                                        title = "Cell type"))
 ```
+
+We make also the figures for simple cell type :
+
+```{r fig4_A1_simple, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
+aquarius::fig_plot_dimplot(sobj_full, reduction_tsne, "cell_type_simple", color_markers_simple, title = "PNST atlas")
+```
+
+This figure represent cell types annotation split by tumor type :
+
+```{r fig4_A1_split_simple, class.source = 'fold-hide', fig.width = 12, fig.height = 5}
+plot_list = aquarius::plot_split_dimred(sobj_full,
+                                        reduction = reduction_tsne,
+                                        split_by = "tumor_type",
+                                        group_by = "cell_type_simple",
+                                        group_color = unlist(color_markers_simple),
+                                        main_pt_size = 0.1,
+                                        bg_pt_size = 0.1)
+
+patchwork::wrap_plots(plot_list, nrow = 1) +
+  patchwork::plot_layout(guides = "collect") &
+  ggplot2::guides(color = guide_legend(override.aes = list(size = 3),
+                                       title = "Cell type"))
+```
+
 
 This figure represents Tomato expression to justify tumor cells annotation.
 
@@ -869,7 +955,7 @@ aquarius::fig_plot_feature(sobj_full, reduction_tsne, gene = "Ptprc",
                            gene_expression_colors = aquarius::color_gene, order = TRUE)
 ```
 
-We represent also Tomato expression split by genotype and tumor type. Cells annotated as tumor cells in "MPNST" zone, in pNF samples, are Tom-, thus not tumor cells but fibroblasts.
+We represent also Tomato expression split by genotype and tumor type. Cells annotated as fibroblasts in "MPNST" zone, in pNF samples, are Tom-, thus true fibroblasts.
 
 ```{r fig_supp_flfl_tomato_split, class.source = 'fold-hide', fig.width = 12, fig.height = 5}
 plot_list = aquarius::plot_split_dimred(sobj_full,
@@ -901,28 +987,15 @@ subsobj$sample_identifier = factor(subsobj$sample_identifier,
 subsobj
 ```
 
-For barplot, we merge all DC populations into one :
-
-```{r cell_type_barplot_flfl}
-subsobj$cell_type_barplot = ifelse(subsobj$cell_type %in% c("cDC", "pDC", "mDC"),
-                                   yes = "DC",
-                                   no = as.character(subsobj$cell_type))
-subsobj$cell_type_barplot = factor(
-  subsobj$cell_type_barplot,
-  levels = stringr::str_replace_all(
-    string = levels(subsobj$cell_type),
-    pattern = "cDC|pDC|mDC",
-    replacement = "DC") %>% unique())
-```
 
 This barplot represents the composition of each dataset in cell populations :
 
 ```{r prep_barplot_flfl, class.source = 'fold-hide'}
 df_proportion = table(subsobj$sample_identifier,
-                      subsobj$cell_type_barplot) %>%
+                      subsobj$cell_type_simple) %>%
   prop.table(., margin = 1) %>%
   as.data.frame.table() %>%
-  `colnames<-`(c("sample_identifier", "cell_type_barplot", "prop_cells")) %>%
+  `colnames<-`(c("sample_identifier", "cell_type_simple", "prop_cells")) %>%
   dplyr::left_join(., y = sample_info, by = "sample_identifier")
 
 plot_content = sample_info %>%
@@ -936,13 +1009,13 @@ plot_list = lapply(names(plot_content), FUN = function(st) {
     aquarius::plot_barplot(.,
                            x = "sample_identifier",
                            y = "prop_cells",
-                           fill = "cell_type_barplot",
+                           fill = "cell_type_simple",
                            position = ggplot2::position_fill()) +
-    ggplot2::scale_fill_manual(values = color_markers_bp,
-                               breaks = names(color_markers_bp),
+    ggplot2::scale_fill_manual(values = color_markers_simple,
+                               breaks = names(color_markers_simple),
                                name = "Cell type") +
     ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
-                                labels = paste0(seq(0, 100, by = 10), sep = " %"),
+                                labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
                                 expand = c(0,0)) +
     ggplot2::theme(axis.title.y = ggplot2::element_blank(),
                    axis.line.x = ggplot2::element_line(colour = "lightgray"),
@@ -983,12 +1056,27 @@ This barplot represents the proportion of cell populations, by tumor type for al
 family_color[["cycling tumor cells"]] = family_color[["tumor cells"]]
 family_color = family_color[c("immune cells", "stromal cells", "tumor cells", "cycling tumor cells")]
 
+subsobj$old_cell_family = subsobj$cell_family
 subsobj$cell_family = ifelse(subsobj$cell_type == "TOM+ cells" & subsobj$Seurat.Phase %in% c("G2M", "S"),
                              yes = "cycling tumor cells",
                              no = subsobj$cell_family)
 
-aquarius::fig_plot_bp_tt(subsobj, groupby = "cell_type_barplot",
-                         colors = color_markers_bp, family_color = family_color) +
+aquarius::fig_plot_bp_tt(subsobj, groupby = "cell_type_simple",
+                         colors = color_markers_simple, family_color = family_color) +
+  Seurat::NoLegend()
+```
+
+We make a similar function based on Birc5 expression instead of cell cycle annotation :
+
+```{r fig4_C_birc5, class.source = 'fold-hide', fig.width = 4.5, fig.height = 5.5}
+subsobj$isBirc5 = (Seurat::FetchData(subsobj, "Birc5")[, 1] > 0)
+
+subsobj$cell_family = ifelse(subsobj$cell_type == "TOM+ cells" & subsobj$isBirc5,
+                             yes = "cycling tumor cells",
+                             no = subsobj$old_cell_family)
+
+aquarius::fig_plot_bp_tt(subsobj, groupby = "cell_type_simple",
+                         colors = color_markers_simple, family_color = family_color) +
   Seurat::NoLegend()
 ```
 
@@ -1055,8 +1143,8 @@ gb2 = data.frame(cell_family = c("immune cells", "stromal cells", "tumor cells")
 
 # Merge
 gb = gridExtra::gtable_combine(gb2,gb1, along = 1)
-gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 11, 15, 2, 11, 15)
-gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(10, 14, 15, 10, 14, 15)
+gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 9, 13, 2, 9, 13)
+gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(8, 12, 13, 8, 12, 13)
 
 # Patchwork
 title_gg = ggplot2::ggplot() +
@@ -1065,6 +1153,23 @@ title_gg = ggplot2::ggplot() +
 patchwork::wrap_plots(list(title_gg, gb)) +
   patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
   ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
+```
+
+We save an Excel file with the proportion of cells by cell type and by sample :
+
+```{r excel_df_quantities_flfl}
+df_quantities = table(sobj_full$cell_type,
+                      sobj_full$sample_identifier) %>%
+  prop.table(., margin = 2) %>%
+  "*"(100) %>% round(., 2) %>%
+  as.data.frame.array(stringAsFactors = FALSE) %>%
+  dplyr::mutate(cell_type = rownames(.)) %>%
+  dplyr::relocate(cell_type)
+df_quantities$nb_cells = rowSums(table(sobj_full$cell_type, sobj_full$sample_identifier))
+df_quantities = rbind(df_quantities,
+                      c("Number of cells", as.numeric(table(sobj_full$sample_identifier)), ncol(sobj_full)))
+
+openxlsx::write.xlsx(df_quantities, file = "./flfl_cell_quantities.xlsx")
 ```
 
 ```{r clean_prop, echo = FALSE}
@@ -1539,7 +1644,7 @@ plot_list[[1]] = aquarius::plot_barplot(Sox_group,
                              breaks = c("glial", "mesenchymal"),
                              name = "Sox group") +
   ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
-                              labels = paste0(seq(0, 100, by = 10), sep = " %"),
+                              labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
                               expand = c(0,0)) +
   ggplot2::theme(axis.title.y = ggplot2::element_blank(),
                  axis.line.x = ggplot2::element_line(colour = "lightgray"),
@@ -1906,17 +2011,6 @@ rm(ha_top, ht, ha_bottom, list_colors, mat_expression, name2D, name_side,
    group1_gs_name, group2_gs_name, group3_gs_name,
    upper_bound, plot_content, func_enr_list)
 ```
-
-
-
-
-
-
-
-
-
-
-
 
 
 

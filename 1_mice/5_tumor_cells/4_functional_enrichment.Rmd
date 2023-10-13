@@ -156,6 +156,37 @@ pseudotime = Seurat::FeaturePlot(sobj,
 sample_of_origin | pseudotime
 ```
 
+We visualize pre-existing clusters :
+
+```{r seurat_clusters, fig.width = 12, fig.height = 8}
+plot_list = lapply(c("Mbp", "Mpz", "Mal"), FUN = function(one_gene) {
+  p = Seurat::FeaturePlot(sobj, features = one_gene,
+                          reduction = name2D) +
+    ggplot2::scale_color_gradientn(colors = aquarius::color_gene) +
+    ggplot2::theme(aspect.ratio = 1) +
+    Seurat::NoAxes()
+  return(p)
+  
+})
+plot_list[[length(plot_list) + 1]] = Seurat::DimPlot(sobj,
+                reduction = name2D,
+                group.by = "seurat_clusters",
+                label = TRUE,
+                cols = aquarius::gg_color_hue(length(levels(sobj$seurat_clusters)))) +
+  Seurat::NoAxes() + Seurat::NoLegend() +
+  ggplot2::theme(aspect.ratio = 1)
+
+patchwork::wrap_plots(plot_list) +
+  patchwork::plot_layout(design = "DDDA\nDDDB\nDDDC")
+```
+
+There is a contamination cluster (myelinating Schwann cells) :
+
+```{r contam_clust}
+contam_clust = 14
+```
+
+
 We cluster cells into three groups, using k-means :
 
 ```{r clustering_big, fig.width = 8, fig.height = 8}
@@ -193,7 +224,7 @@ Seurat::DimPlot(sobj,
   ggplot2::theme(aspect.ratio = 1)
 ```
 
-We can also have a lot of groups :
+We can also define a lot of groups :
 
 ```{r clustering, fig.width = 8, fig.height = 8}
 # kmeans
@@ -207,6 +238,10 @@ kmeans_obj = stats::kmeans(kmeans_obj, centers = 10, nstart = 10,
 # add column in method data
 sobj$small_clusters = kmeans_obj$cluster[colnames(sobj)]
 
+# we remove a contaminating cluster
+sobj$small_clusters = ifelse(sobj$seurat_clusters == contam_clust,
+                             yes = NA, no = sobj$small_clusters)
+
 # relevel according to pseudotime
 small_clusters_levels = sobj@meta.data[, c("small_clusters", "pseudotime")] %>%
   dplyr::group_by(small_clusters) %>%
@@ -215,16 +250,16 @@ small_clusters_levels = sobj@meta.data[, c("small_clusters", "pseudotime")] %>%
   dplyr::pull(small_clusters)
 
 # replace plexiform as cluster 0
-sobj$small_clusters = ifelse(sobj$sample_type == "flfl_pNF",
+sobj$small_clusters = ifelse(sobj$sample_type == "flfl_pNF" & sobj$seurat_clusters != contam_clust,
                              yes = 0,
                              no = sobj$small_clusters)
 
 sobj$small_clusters = factor(sobj$small_clusters,
                              levels = c(0, small_clusters_levels))
-levels(sobj$small_clusters) = c(0:length(small_clusters_levels))
+levels(sobj$small_clusters) = c(0:(length(small_clusters_levels)-1))
 
 # How many cells by group ?
-table(sobj$small_clusters)
+table(sobj$small_clusters, useNA = "ifany")
 
 # Visualization
 Seurat::DimPlot(sobj,
@@ -2219,6 +2254,21 @@ We save the `list_results` object :
 
 ```{r save_list_results}
 saveRDS(list_results, file = paste0(out_dir, "/", save_name, "_list_results.rds"))
+```
+
+We also save it in XLSX format, for only DE genes :
+
+```{r save_list_results_xlsx}
+list_results = lapply(list_results, FUN = function(elem) {
+  the_df = as.data.frame(elem[1])
+  colnames(the_df) = c("p_val", "avg_logFC", "pct.1", "pct.2", "p_val_adj")
+  
+  return(the_df)})
+
+openxlsx::write.xlsx(x = list_results,
+                     file = paste0(out_dir, "/", save_name, "_list_results.xlsx"),
+                     col.names  = TRUE,
+                     row.names = TRUE)
 ```
 
 
