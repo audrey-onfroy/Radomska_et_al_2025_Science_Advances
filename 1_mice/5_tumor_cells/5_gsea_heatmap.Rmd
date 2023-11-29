@@ -275,7 +275,7 @@ ha_bottom = HeatmapAnnotation(percent_mito = sobj$percent.mt,
                                          cell_cycle_phase = list_colors[["cell_cycle_phase"]]))
 
 # Function to make the heatmap from the expression matrix
-make_ht = function(mat_expr) {
+make_ht = function(mat_expr, ...) {
   ht = Heatmap(as.matrix(mat_expr),
                heatmap_legend_param = list(title = "score", at = c(0, 1), 
                                            labels = c("low", "high")),
@@ -286,12 +286,13 @@ make_ht = function(mat_expr) {
                column_gap = unit(2, "mm"),
                cluster_rows = FALSE,
                row_title = NULL,
-               row_names_gp = grid::gpar(fontsize = 8, fontface = "plain"),
-               row_names_max_width = ComplexHeatmap::max_text_width(rownames(mat_expr), 
-                                                                    gp = gpar(fontsize = 8)),
+               row_names_gp = grid::gpar(fontsize = 10, fontface = "plain"),
+               row_names_max_width = ComplexHeatmap::max_text_width(rownames(mat_expr),
+                                                                    gp = gpar(fontsize = 10)),
                use_raster = FALSE,
                show_heatmap_legend = TRUE,
-               border = TRUE)
+               border = TRUE,
+               ...)
   return(ht)
 }
 ```
@@ -375,10 +376,15 @@ We have a big amount of gene sets, so we split into categories.
 
 ### Hallmark
 
-```{r heatmap_hallmark, class.source = "fold-hide", fig.width = 15, fig.height = 15}
+```{r heatmap_hallmark, class.source = "fold-hide", fig.width = 15, fig.height = 12}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^HALLMARK", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("HALLMARK_") + 1,
+                                      stop = 50 + nchar("HALLMARK_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -390,10 +396,14 @@ ComplexHeatmap::draw(ht,
 
 ### GO : Biological Processes
 
-```{r heatmap_gobp, class.source = "fold-hide", fig.width = 15, fig.height = 45}
+```{r heatmap_gobp, class.source = "fold-hide", fig.width = 15, fig.height = 100}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^GOBP", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("GOBP_") + 1,
+                                      stop = 50 + nchar("GOBP_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -405,10 +415,14 @@ ComplexHeatmap::draw(ht,
 
 ### GO : Molecular Functions
 
-```{r heatmap_gomf, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+```{r heatmap_gomf, class.source = "fold-hide", fig.width = 15, fig.height = 20}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^GOMF", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("GOMF_") + 1,
+                                      stop = 50 + nchar("GOMF_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -420,10 +434,14 @@ ComplexHeatmap::draw(ht,
 
 ### GO : Cellular Components
 
-```{r heatmap_gocc, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+```{r heatmap_gocc, class.source = "fold-hide", fig.width = 15, fig.height = 20}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^GOCC", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("GOCC_") + 1,
+                                      stop = 50 + nchar("GOCC_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -435,10 +453,14 @@ ComplexHeatmap::draw(ht,
 
 ### KEGG Pathways
 
-```{r heatmap_kegg, class.source = "fold-hide", fig.width = 15, fig.height = 30}
+```{r heatmap_kegg, class.source = "fold-hide", fig.width = 15, fig.height = 10}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^KEGG", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("KEGG_") + 1,
+                                      stop = 50 + nchar("KEGG_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -449,10 +471,14 @@ ComplexHeatmap::draw(ht,
 
 ### BioCarta
 
-```{r heatmap_biocarta, class.source = "fold-hide", fig.width = 15, fig.height = 30}
+```{r heatmap_biocarta, class.source = "fold-hide", fig.width = 15, fig.height = 10}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^BIOCARTA", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("BIOCARTA_") + 1,
+                                      stop = 50 + nchar("BIOCARTA_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -463,10 +489,14 @@ ComplexHeatmap::draw(ht,
 
 ### Wiki Pathways
 
-```{r heatmap_wp, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+```{r heatmap_wp, class.source = "fold-hide", fig.width = 15, fig.height = 20}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^WP", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("WP_") + 1,
+                                      stop = 50 + nchar("WP_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -478,10 +508,14 @@ ComplexHeatmap::draw(ht,
 
 ### Reactome
 
-```{r heatmap_reactome, class.source = "fold-hide", fig.width = 15, fig.height = 35}
+```{r heatmap_reactome, class.source = "fold-hide", fig.width = 15, fig.height = 45}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^REACTOME", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("REACTOME_") + 1,
+                                      stop = 50 + nchar("REACTOME_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -493,10 +527,14 @@ ComplexHeatmap::draw(ht,
 
 ### Pathways Interaction (PID)
 
-```{r heatmap_pid, class.source = "fold-hide", fig.width = 15, fig.height = 30}
+```{r heatmap_pid, class.source = "fold-hide", fig.width = 15, fig.height = 10}
 features_order_subset = features_order[which(features_order %in% grep(choosen_gs_name,
                                                                       pattern = "^PID", value = TRUE))]
 sub_mat_expression = mat_expression[features_order_subset, ]
+rownames(sub_mat_expression) = lapply(features_order_subset,
+                                      FUN = substr,
+                                      start = nchar("PID_") + 1,
+                                      stop = 50 + nchar("PID_"))
 ht = make_ht(sub_mat_expression)
 
 ComplexHeatmap::draw(ht,
@@ -512,4 +550,12 @@ We save the dataframe containing score for each gene set :
 ```{r save_df_scores}
 saveRDS(df_scores, file = paste0(out_dir, "/", save_name, "_df_scores.rds"))
 ```
+
+
+# R session
+
+```{r sessioninfo, echo = FALSE, fold_output = TRUE}
+sessionInfo()
+```
+
 
