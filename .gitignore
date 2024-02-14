@@ -3,6 +3,7 @@
 **h5
 .Rhistory
 
-
-4_figures/old_figures*
-4_figures/figures_detail*
+**run_cnv*
+*_figures/old_figures*
+*_figures/figures_detail*
+*_screening/data*
