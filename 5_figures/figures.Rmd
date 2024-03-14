@@ -1,6 +1,6 @@
 ---
 title: "Figures for the paper"
-subtitle: "Version 20"
+subtitle: "Version 21"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -345,7 +345,10 @@ rm(sh_tab, long_sh_tab, my_ttest, plot_content, plot_list, clones_oi)
 We open the table :
 
 ```{r si_read_table}
-si_tab = read.csv(paste0(analysis_dir, "/SOX9-LSS06-Spike-Results-manuscript.csv"))
+si_tab = read.csv(paste0(analysis_dir, "/SOX9-LSS06-Spike-Results-manuscript.csv")) %>%
+  dplyr::mutate(Treatment = ifelse(Treatment == "siCTL",
+                                   yes = "si-ctrl",
+                                   no = "si-Sox9"))
 
 head(si_tab)
 ```
@@ -362,7 +365,7 @@ ggplot2::ggplot(si_tab, aes(x = Treatment, y = X..of.siCTL.Nuc)) +
                               labels = format(seq(0, 1.1*max(si_tab$X..of.siCTL.Nuc), by = 25), nsmall = 2),
                               limits = c(0, 125),
                               expand = c(0,0)) +
-  ggplot2::labs(y = "% of siCTL intensity",
+  ggplot2::labs(y = "% of si-ctrl intensity",
                 x = "siRNA") +
   ggplot2::guides(color = guide_legend(title = "Tumor")) +
   ggplot2::theme_classic() +
@@ -1137,7 +1140,7 @@ patchwork::wrap_plots(plot_list, widths = plot_content, nrow = 1) +
 
 This barplot represents the proportion of cell populations, by tumor type for all mice, except the two samples filtered for Tomato expression by FACS :
 
-```{r fig4_C, class.source = 'fold-hide', fig.width = 4.5, fig.height = 5.5}
+```{r fig4_C, class.source = 'fold-hide', fig.width = 4.5, fig.height = 4}
 aquarius::fig_plot_bp_tt(subsobj, groupby = "cell_type_simple",
                          colors = color_markers_simple, family_color = family_color) +
   Seurat::NoLegend()
@@ -1750,7 +1753,8 @@ plot_list = lapply(c(genes_tom_traj, "dtTomato"),
                                                            myred = name2D,
                                                            gene = one_gene,
                                                            gene_expression_colors = aquarius::color_gene,
-                                                           pt.size = 0.10) +
+                                                           pt.size = 0.10,
+                                                           order = TRUE) +
                        ggplot2::labs(title = one_gene) +
                        ggplot2::theme(axis.title = element_blank(),
                                       axis.line = element_blank(),
@@ -1953,21 +1957,19 @@ We make a dataframe containing scores for each gene sets and each cells, for the
 df_score_group1 = func_enr_list[["group 1_vs_group 3"]]$gsea_up[group1_gs_name, ]
 df_score_group1$group = "group 1"
 df_score_group1$NES = abs(df_score_group1$NES)
-upper_bound = ceiling(max(df_score_group1$NES))
 
 ggplot2::ggplot(df_score_group1, aes(x = stats::reorder(.data$ID, .data$NES),
-                                     y = -.data$NES, fill = .data$group)) +
+                                     y = .data$NES, fill = .data$group)) +
   ggplot2::geom_bar(stat = "identity", col = "black") +
   ggplot2::coord_flip(clip = "off") +
   ggplot2::geom_hline(yintercept = 0) +
-  ggplot2::geom_label(mapping = aes(label = .data$ID, y = -0.05), fill = NA, label.size = NA,
-                      hjust = 1, size = 4.5, fontface = "bold") +
+  ggplot2::geom_label(mapping = aes(label = .data$ID, y = 0.05), fill = NA, label.size = NA,
+                      hjust = 0, size = 4.5, fontface = "bold") +
   ggplot2::facet_grid(group ~ ., scales = "free", space = "free") +
   ggplot2::scale_x_discrete(position = "top") +
-  ggplot2::scale_y_continuous(breaks = c(-upper_bound:0), labels = c(upper_bound:0)) +
   ggplot2::labs(y = "Normalized Enrichment Score (NES)", title = "") +
-  ggplot2::geom_label(aes(label = round(.data$p.adjust, 4), y = -(.data$NES + 0.1)),
-                      fill = NA, label.size = 0) +
+  ggplot2::geom_label(aes(label = round(.data$p.adjust, 4), y = (.data$NES + 0.1)),
+                      fill = NA, label.size = 0, size = 5) +
   ggplot2::scale_fill_manual(values = group_colors[1],
                              guide = "none") +
   ggplot2::theme_light() +
@@ -1992,21 +1994,19 @@ ggplot2::ggplot(df_score_group1, aes(x = stats::reorder(.data$ID, .data$NES),
 df_score_group2 = func_enr_list[["group 1_vs_group 2"]]$gsea_down[group2_gs_name, ]
 df_score_group2$group = "group 2"
 df_score_group2$NES = abs(df_score_group2$NES)
-upper_bound = ceiling(max(df_score_group2$NES))
 
 ggplot2::ggplot(df_score_group2, aes(x = stats::reorder(.data$ID, .data$NES),
-                                     y = -.data$NES, fill = .data$group)) +
+                                     y = .data$NES, fill = .data$group)) +
   ggplot2::geom_bar(stat = "identity", col = "black") +
   ggplot2::coord_flip(clip = "off") +
   ggplot2::geom_hline(yintercept = 0) +
-  ggplot2::geom_label(mapping = aes(label = .data$ID, y = -0.05), fill = NA, label.size = NA,
-                      hjust = 1, size = 4.5, fontface = "bold") +
+  ggplot2::geom_label(mapping = aes(label = .data$ID, y = 0.05), fill = NA, label.size = NA,
+                      hjust = 0, size = 4.5, fontface = "bold") +
   ggplot2::facet_grid(group ~ ., scales = "free", space = "free") +
   ggplot2::scale_x_discrete(position = "top") +
-  ggplot2::scale_y_continuous(breaks = c(-upper_bound:0), labels = c(upper_bound:0)) +
   ggplot2::labs(y = "Normalized Enrichment Score (NES)", title = "") +
-  ggplot2::geom_label(aes(label = round(.data$p.adjust, 4), y = -(.data$NES + 0.1)),
-                      fill = NA, label.size = 0) +
+  ggplot2::geom_label(aes(label = round(.data$p.adjust, 4), y = (.data$NES + 0.1)),
+                      fill = NA, label.size = 0, size = 5) +
   ggplot2::scale_fill_manual(values = group_colors[2],
                              guide = "none") +
   ggplot2::theme_light() +
@@ -2031,21 +2031,19 @@ ggplot2::ggplot(df_score_group2, aes(x = stats::reorder(.data$ID, .data$NES),
 df_score_group3 = func_enr_list[["group 1_vs_group 3"]]$gsea_down[group3_gs_name, ]
 df_score_group3$group = "group 3"
 df_score_group3$NES = abs(df_score_group3$NES)
-upper_bound = ceiling(max(df_score_group3$NES))
 
 ggplot2::ggplot(df_score_group3, aes(x = stats::reorder(.data$ID, .data$NES),
-                                     y = -.data$NES, fill = .data$group)) +
+                                     y = .data$NES, fill = .data$group)) +
   ggplot2::geom_bar(stat = "identity", col = "black") +
   ggplot2::coord_flip(clip = "off") +
   ggplot2::geom_hline(yintercept = 0) +
-  ggplot2::geom_label(mapping = aes(label = .data$ID, y = -0.05), fill = NA, label.size = NA,
-                      hjust = 1, size = 4.5, fontface = "bold") +
+  ggplot2::geom_label(mapping = aes(label = .data$ID, y = 0.05), fill = NA, label.size = NA,
+                      hjust = 0, size = 4.5, fontface = "bold") +
   ggplot2::facet_grid(group ~ ., scales = "free", space = "free") +
   ggplot2::scale_x_discrete(position = "top") +
-  ggplot2::scale_y_continuous(breaks = c(-upper_bound:0), labels = c(upper_bound:0)) +
   ggplot2::labs(y = "Normalized Enrichment Score (NES)", title = "") +
-  ggplot2::geom_label(aes(label = round(.data$p.adjust, 4), y = -(.data$NES + 0.1)),
-                      fill = NA, label.size = 0) +
+  ggplot2::geom_label(aes(label = round(.data$p.adjust, 4), y = (.data$NES + 0.1)),
+                      fill = NA, label.size = 0, size = 5) +
   ggplot2::scale_fill_manual(values = group_colors[3],
                              guide = "none") +
   ggplot2::theme_light() +
@@ -2068,7 +2066,7 @@ ggplot2::ggplot(df_score_group3, aes(x = stats::reorder(.data$ID, .data$NES),
 
 ```{r clean_tumor_cells2, echo = FALSE}
 rm(ha_top, ht, ha_bottom, list_colors, mat_expression, name2D, name_side,
-   sobj, features, features_group, group_colors, sample_info, mouse_dir,
+   sobj, features, group_colors, sample_info, mouse_dir,
    reduction_tsne, df_score_group1, df_score_group2, df_score_group3,
    group1_gs_name, group2_gs_name, group3_gs_name,
    upper_bound, plot_content, func_enr_list)
@@ -2208,10 +2206,15 @@ plot_list
 We can represent gene expression levels on a heatmap.
 
 ```{r graft_heatmap_genes, class.source = "fold-hide"}
+features_group = sapply(c(1:length(genes_heatmap)),
+                        FUN = function(i) {
+                          rep(x = names(genes_heatmap)[i],
+                              length = length(genes_heatmap[[i]]))}) %>% unlist() %>% as.vector()
 features = unique(unlist(genes_heatmap))
 
 features[!(features %in% rownames(sobj))]
 features = features[features %in% rownames(sobj)]
+features_group = features_group[features]
 ```
 
 We prepare the gene expression matrix :
@@ -2289,8 +2292,8 @@ ht = ComplexHeatmap::Heatmap(as.matrix(mat_expression),
                              # Cells label
                              show_column_names = FALSE,
                              # Gene grouping
-                             # row_split = features_group,
-                             # row_gap = unit(2, "mm"),
+                             row_split = features_group,
+                             row_gap = unit(2, "mm"),
                              # row_title = NULL,
                              cluster_rows = FALSE,
                              show_row_dend = FALSE,
@@ -2312,7 +2315,7 @@ ComplexHeatmap::draw(ht, # legend_grouping = "original",
 
 ```{r clean_graft, echo = FALSE}
 rm(ha_bottom, ha_top, ht, list_colors, mat_expression,
-   plot_list, sobj, features, name_side, name2D, good_order,
+   plot_list, sobj, features, name_side, name2D,
    genes_tom_traj, graft_dir)
 ```
 
@@ -2336,6 +2339,7 @@ We set the global settings for this analysis :
 sample_info = readRDS(paste0(patient_dir, "/1_metadata/patients_sample_info.rds"))
 dotplot_markers = readRDS(paste0(patient_dir, "/1_metadata/patients_dotplot_markers.rds"))
 color_markers = readRDS(paste0(patient_dir, "/1_metadata/patients_color_markers.rds"))
+color_markers[["mural cells"]] = "gray60"
 
 reduction_tsne = "harmony_80_tsne"
 ```
@@ -2448,12 +2452,12 @@ Genes of interest :
 plot_list = lapply(c("PTPRC", "SOX10", "NGFR", "L1CAM", "CHL1",
                      "PDGFRA", "PDGFRB", "CD34", "SPP1", "CRABP1", "SOX9", "DLK1"), FUN = function(one_gene) {
                        p = aquarius::fig_plot_feature(sobj_full, reduction_tsne, gene = one_gene,
-                                                      gene_expression_colors = aquarius::color_gene)
+                                                      gene_expression_colors = aquarius::color_gene,
+                                                      order = TRUE)
                        return(p)
                      })
 plot_list
 ```
-
 
 This dotplot assesses the cell type annotation :
 
@@ -2477,6 +2481,57 @@ aquarius::fig_plot_dotplot(sobj_full,
 
 ```{r clean_markers, echo = FALSE}
 rm(dotplot_markers, markers)
+```
+
+## Zoom on fibroblasts
+
+```{r sobj_fibro_patients}
+sobj_fibro = subset(sobj_full, cluster_type == "fibroblasts")
+sobj_fibro
+```
+
+```{r figPatients_fibro_loc, fig.width = 6, fig.height = 6}
+sobj_full$is_fibro = colnames(sobj_full) %in% colnames(sobj_fibro)
+
+Seurat::DimPlot(sobj_full, group.by = "is_fibro", reduction = reduction_tsne,
+                cols = c("lightgray", color_markers[["fibroblasts"]])) +
+  ggplot2::labs(x = "tSNE 1", y = "tSNE 2", title = "Fibroblasts",
+                subtitle = paste0(length(colnames(sobj_fibro)), " cells")) +
+  Seurat::NoLegend() + Seurat::NoAxes() +
+  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
+                 plot.subtitle = element_text(hjust = 0.5, face = "bold", size = 12),
+                 aspect.ratio = 1)
+```
+Features and violin plots for genes of interest :
+
+```{r figPatients_fibro_vln, fig.width = 8, fig.height = 5}
+genes = list("caf" = c("Postn", "Loxl1", "Thy1", "Col14a1", "Col16a1", "Lsp1", "Pi16", "Ptprs", "Arap1",
+                       "Cilp", "Ptn", "Mest", "Tnc", "Plagl1"),
+             "endo" = c("Apod", "Apoe", "Cp", "Gpc3", "Ccl11", "Tgfbi", "Cpe", "Crispld2", "Vwa1", "Vit"),
+             "peri" = c("Lrp4", "Hspb1", "Itga6", "Cav1", "Wnt6", "Cav2", "Sdpr", "Itgb4", "Sfrp5", "Ildr2"),
+             "epi" = c("Clec3b", "Ifi205", "Adamts5", "Gdf10", "Hspb8", "Gda", "Lgals3", "C7", "Fst", "Gpnmb")) %>%
+  unlist() %>% unname() %>% toupper()
+genes[!(genes %in% rownames(sobj_full))]
+genes = genes[genes %in% rownames(sobj_full)]
+
+plot_list = lapply(genes, FUN = function(one_gene) {
+  p1 = Seurat::VlnPlot(sobj_fibro, features = one_gene,
+                       group.by = "tumor_type", pt.size = 0.05,
+                       col = setNames(nm = c("pNF", "dyNF", "MPNST"),
+                                      c("blue", "green", "purple"))) +
+    Seurat::NoLegend() +
+    ggplot2::theme(axis.title.x = element_blank())
+  
+  p2 = aquarius::fig_plot_feature(sobj_full, reduction_tsne, gene = one_gene,
+                                  gene_expression_colors = aquarius::color_gene)
+  
+  p = patchwork::wrap_plots(p2, p1, nrow = 1,
+                            widths = c(2.5, 1.5))
+  
+  return(p)
+})
+
+plot_list
 ```
 
 
@@ -2566,12 +2621,17 @@ We make the same heatmap as for mouse :
 
 ```{r patients_heatmap_genes, class.source = "fold-hide"}
 genes_heatmap = lapply(genes_heatmap, FUN = toupper)
-
+features_group = sapply(c(1:length(genes_heatmap)),
+                        FUN = function(i) {
+                          rep(x = names(genes_heatmap)[i],
+                              length = length(genes_heatmap[[i]]))}) %>% unlist() %>% as.vector()
 features = unique(unlist(genes_heatmap))
+
 features[which(features == "CD59A")] = "CD59"
 
 features[!(features %in% rownames(sobj_tum))]
 features = features[features %in% rownames(sobj_tum)]
+features_group = features_group[features]
 ```
 
 We prepare the gene expression matrix :
@@ -2634,6 +2694,8 @@ ht = ComplexHeatmap::Heatmap(as.matrix(mat_expression),
                              top_annotation = ha_top,
                              bottom_annotation = ha_bottom,
                              # Cells grouping
+                             column_split = sobj_tum$tumor_type,
+                             column_gap = unit(1, "mm"),
                              column_title = NULL,
                              # Cells order
                              column_order = order(sobj_tum$project_name),
@@ -2642,8 +2704,9 @@ ht = ComplexHeatmap::Heatmap(as.matrix(mat_expression),
                              # Cells label
                              show_column_names = FALSE,
                              # Gene grouping
-                             # row_split = features_group,
-                             # row_gap = unit(2, "mm"),
+                             row_split = features_group,
+                             row_gap = unit(1, "mm"),
+                             row_title = NULL,
                              # row_title = NULL,
                              cluster_rows = FALSE,
                              show_row_dend = FALSE,
@@ -2655,11 +2718,11 @@ ht = ComplexHeatmap::Heatmap(as.matrix(mat_expression),
                              use_raster = FALSE)
 ```
 
-```{r figPatients_heatmap, fig.width = 9, fig.height = 22}
+```{r figPatients_heatmap, fig.width = 10, fig.height = 20}
 ComplexHeatmap::draw(ht, # legend_grouping = "original",
                      merge_legend = TRUE,
-                     heatmap_legend_side = "bottom",
-                     annotation_legend_side = "bottom")
+                     heatmap_legend_side = "left",
+                     annotation_legend_side = "left")
 ```
 
 
