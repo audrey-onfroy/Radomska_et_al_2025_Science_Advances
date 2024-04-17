@@ -1,6 +1,6 @@
 ---
 title: "Figures for the paper"
-subtitle: "Version 21"
+subtitle: "Version 22"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -381,6 +381,527 @@ We clean the environment :
 rm(si_tab)
 ```
 
+# Whole Exome Sequencing
+
+In this section, we make the figure relative to the WES.
+
+## CNV - primary
+
+We make the figure relative to CNV in primary tumors.
+
+### Load data
+
+We load the CNV table :
+
+```{r wes_load_cnv}
+cnv_data = openxlsx::read.xlsx("./data/WES2023_Aggregated_annotated_Primaries.xlsx")
+
+dim(cnv_data) ; colnames(cnv_data)
+```
+
+We arrange columns :
+
+```{r wes_arrange_columns}
+cnv_data = cnv_data %>%
+  dplyr::select(Line, Chr, Start, End,
+                `27187_PrimaryTumor_vs_27187_Spleen`,
+                `83935_PrimaryTumor_vs_83935_Spleen`,
+                CF153_PrimaryTumor_vs_CF153_Spleen,
+                M23349_Tumor_vs_Spleen,
+                M23465_Tumor_vs_Spleen,
+                M46643_Tumor1_vs_M46643_Spleen,
+                M46643_Tumor2_vs_M46643_Spleen,
+                M46643_Tumor3_vs_M46643_Spleen,
+                M62892_Tumor_vs_Spleen,
+                M62908_Tumor_vs_M62908_Spleen,
+                M63717_Tumor_vs_Spleen,
+                M76339_Tumor_vs_M76339_Spleen,
+                M83937_TumorP0_vs_M83937_Spleen,
+                FREQ_LOSS, FREQ_GAIN, FREQ_TOTAL, Cyto.Start, Symbols) %>%
+  dplyr::filter(FREQ_GAIN != 0 | FREQ_LOSS != 0) %>%
+  dplyr::mutate(region = paste0(Chr, Cyto.Start)) %>%
+  dplyr::mutate(region = stringr::str_replace_all(region, pattern = "\\.", replacement = "_"))
+
+dim(cnv_data) ; colnames(cnv_data)
+table(cnv_data$region) %>% head()
+table(cnv_data$region) %>% dim()
+```
+
+We extract sample names :
+
+```{r wes_sample_names}
+sample_col_ids = c(5:17)
+sample_names = colnames(cnv_data[sample_col_ids])
+sample_names
+```
+
+We remove `NA`-containing rows, because it is better if the plot shows values for all samples :
+
+```{r wes_remove_na}
+cnv_data = na.omit(cnv_data)
+dim(cnv_data)
+```
+
+### Annotation
+
+We prepare everything to make the oncoplot :
+
+```{r wes_prep_annotation, class.source = "fold-hide"}
+binarize = function(value) {
+  value = dplyr::case_when(is.na(value) ~ "na",
+                           # loss of two copies
+                           value <= -0.12 ~ "loss",
+                           # no change (background)
+                           value > -0.13 & value < 0.25 ~ "",
+                           # gain
+                           value >= 0.25 ~ "gain")
+  return(value)
+}
+
+vec_colors_cnv = c("loss" = "#2166AC",
+                   "background" = "#F7F7F7",
+                   "gain" = "#B2182B",
+                   na = "gray60")
+
+alter_fun_cnv = list(
+  background = alter_graphic("rect", fill = vec_colors_cnv[["background"]],
+                             width = 0.9, height = 0.9),
+  "loss" = alter_graphic("rect", fill = vec_colors_cnv[["loss"]],
+                         width = 0.9, height = 0.9),
+  "gain" = alter_graphic("rect", fill = vec_colors_cnv[["gain"]],
+                         width = 0.9, height = 0.9),
+  na = alter_graphic("rect", fill = vec_colors_cnv[["na"]],
+                     width = 0.9, height = 0.9)
+)
+
+heatmap_legend_param = list(title = "Copy Number Variations",
+                            at = c("loss", "gain", "na"), 
+                            labels = c("loss", "gain", "na"))
+```
+
+### Binarize and subset
+
+We binarize the CNV continuous data into gain, loss or background :
+
+```{r wes_binarize}
+cnv_data[, sample_names] = vapply(as.matrix(cnv_data[, sample_names]),
+                                  FUN = binarize,
+                                  FUN.VALUE = character(1))
+```
+
+We keep information when they are alterations in at least 4 samples :
+
+```{r wes_subset_4_samples}
+cnv_data$nb_samples = rowSums(cnv_data[, sample_names] != "", na.rm = TRUE)
+
+cnv_data = cnv_data %>%
+  dplyr::filter(nb_samples > 4)
+
+dim(cnv_data)
+```
+
+### Regions of interest
+
+We identify regions as the combined information of **chrosomome + cytoband + motif**, motif being as `___gain__loss___loss__loss__loss`.
+
+```{r wes_motif}
+cnv_data$motif = apply(cnv_data[, sample_names], 1, FUN = paste, collapse = "_")
+head(cnv_data$motif)
+
+cnv_data = cnv_data %>%
+  dplyr::group_by(paste(region, motif))
+```
+
+We want to print the gene names of interest along with the chromosome, in left annotation of the oncoplot :
+
+```{r wes_genes_oi, class.source = "fold-hide"}
+# all_genes = (cnv_data$Symbols %>%
+#                paste0(., collapse = ",") %>%
+#                stringr::str_split(.,
+#                                   pattern = ","))[[1]] %>%
+#   unique() %>% sort()
+# 
+# not_of_interest = Rik
+# 
+# all_genes = grep(all_genes, pattern = "Rik$|^Gm[0-9]*$|^Mir[0-9][0-9]*",
+#                  value = TRUE, invert = TRUE)
+# 
+# all_genes = grep(all_genes, pattern = "-ps$",
+#                  value = TRUE, invert = TRUE)
+# 
+# all_genes = grep(all_genes, pattern = "^AA|^AU|^BC",
+#                  value = TRUE, invert = TRUE)
+# 
+# all_genes = grep(all_genes, pattern = "^Snor",
+#                  value = TRUE, invert = TRUE)
+# 
+# all_genes = grep(all_genes, pattern = "^Olfr[0-9][0-9]*",
+#                  value = TRUE, invert = TRUE)
+# 
+# all_genes = grep(all_genes, pattern = "^Slc[0-9][0-9]*",
+#                  value = TRUE, invert = TRUE)
+# 
+# all_genes = grep(all_genes, pattern = "^Rp[l|s][0-9]*$",
+#                  value = TRUE, invert = TRUE)
+# 
+# 
+# max_print = getOption("max.print")
+# options(max.print = length(all_genes))
+# print(all_genes, max.print = length(all_genes))
+# options(max.print = max_print)
+
+genes_oi = c("Acta2", "Btg1", "Dcn", "Lum",
+             "Cdk1", "Cdk4", "Cdkn2a",
+             "Col18a1", "Col6a1", "Col6a2", "Igf1",
+             "Lama2", "Lama4", "Mdm2", "Mif", "Mmp11", "Mmp19", "Nfkb2",
+             "Pten", "Ptprk", "Timp3")
+```
+
+We arrange the grouped dataframe :
+
+```{r wes_arrange_grouped}
+cnv_group_fun = function(sub_dataframe) {
+  grouped_row = list()
+  
+  ## Chr
+  grouped_row[["Chr"]] = sub_dataframe[["Chr"]] %>%
+    unique() %>%
+    sort() %>%
+    paste(., collapse = "_")
+  
+  ## Start
+  grouped_row[["Start"]] = sub_dataframe[["Start"]] %>%
+    min()
+  
+  ## End
+  grouped_row[["End"]] = sub_dataframe[["End"]] %>%
+    max()
+  
+  ## Width
+  grouped_row[["Width"]] = grouped_row[["End"]] - grouped_row[["Start"]]
+  
+  ## Cyto
+  grouped_row[["Cyto.Start"]] = sub_dataframe[["Cyto.Start"]] %>%
+    unique() %>%
+    sort() %>%
+    paste(., collapse = "_")
+  
+  ## Region
+  grouped_row[["Region"]] = paste0(grouped_row[["Chr"]],
+                                   grouped_row[["Cyto.Start"]])#,
+  #"_",
+  #grouped_row[["Width"]]) 
+  
+  ## Symbols
+  all_symbols = (sub_dataframe[["Symbols"]] %>%
+                   paste(., collapse = ",") %>%
+                   stringr::str_split(., pattern = ","))[[1]] %>%
+    unique() %>% sort()
+  
+  grouped_row[["Symbols"]] = all_symbols[all_symbols %in% genes_oi] %>%
+    paste(., collapse = ",")
+  
+  ## Add in symbols
+  if (grouped_row[["Symbols"]] != "") {
+    grouped_row[["Region"]] = paste0(grouped_row[["Region"]], " (",
+                                     grouped_row[["Symbols"]], ")")
+  }
+  
+  ## Unlist
+  grouped_row = unlist(grouped_row)
+  
+  ## Samples
+  sample_summary = sub_dataframe[sample_col_ids] %>%
+    apply(., 2, FUN = unique) %>%
+    unlist()
+  
+  ## Output
+  grouped_row = c(grouped_row, sample_summary)
+  
+  return(grouped_row)
+}
+
+new_column_names = c("Chr", "Start", "End", "Width", "Cyto.Start", "Region", "Symbols",
+                     colnames(cnv_data)[sample_col_ids])
+
+cnv_data = cnv_data %>%
+  dplyr::group_map(~ cnv_group_fun(.)) %>%
+  do.call(rbind.data.frame, .) %>%
+  `colnames<-`(new_column_names)
+
+cnv_data[, c("Start", "End", "Width")] = apply(cnv_data[, c("Start", "End", "Width")], 2,
+                                               FUN = function(x) {as.numeric(as.character(x))})
+
+dim(cnv_data)
+```
+
+Still to many information. We keep region when they are longer than 500 nucleotides, and for each cytoband, keep the most affecting section.
+
+```{r wes_subset_cnv}
+cnv_data = cnv_data %>%
+  dplyr::filter(Width > 500)
+
+dim(cnv_data)
+
+# Keep the most affecting section of the cytoband
+cnv_data$prob_affected = apply(cnv_data, MARGIN = 1, FUN = function(one_row) {
+  return(sum(one_row != ""))
+})
+
+cnv_data = cnv_data %>%
+  dplyr::group_by(Chr, Cyto.Start) %>%
+  dplyr::filter(prob_affected == max(prob_affected)) %>%
+  dplyr::filter(Width == max(Width)) %>% # ensure only one
+  as.data.frame()
+
+dim(cnv_data)
+```
+
+### Oncoplot
+
+We reshape the dataframe into a matrix compatible with the oncoplot function :
+
+```{r wes_prep_matrix}
+cnv_matrix = as.matrix(cnv_data[, sample_names])
+rownames(cnv_matrix) = cnv_data$Region
+```
+
+We load sample annotation and re-order the matrix :
+
+```{r wes_sample_annot}
+# Sample annotation
+sample_annot = openxlsx::read.xlsx("./data/Table_Genetic.xlsx", sheet = 3)
+
+# Add id corresponding to scRNA-Seq
+sample_annot$sc_ID = dplyr::case_when(
+  sample_annot$ID == "#46643_T1" ~ "flmn_MPNST_1", # 2022_25 -- check
+  sample_annot$ID == "#46643_T2" ~ "flmn_MPNST_2", # 2022_26 -- check
+  sample_annot$ID == "#46643_T3" ~ "flmn_MPNST_0", # 2022_27 -- check
+  sample_annot$ID == "#83935" ~ "flmn_MPNST_E",
+  sample_annot$ID == "#27187" ~ "flmn_MPNST_F",
+  sample_annot$ID == "#83937" ~ "flmn_MPNST_G",
+  sample_annot$ID == "#CF153" ~ "flfl_MPNST_3", # 2019_G
+  sample_annot$ID == "#62908" ~ "flfl_MPNST_2", # 2020_19
+  sample_annot$ID == "#76339" ~ "flfl_MPNST_4", # 2021_33
+  sample_annot$ID == "#63717" ~ "flfl_MPNST_A",
+  sample_annot$ID == "#23249" ~ "flfl_MPNST_B",
+  sample_annot$ID == "#23465" ~ "flfl_MPNST_C",
+  sample_annot$ID == "#62982"  ~ "flfl_MPNST_D",
+  TRUE ~ "PROBLEM")
+
+# Reshape
+sample_annot = sample_annot %>%
+  `rownames<-`(c(.$sc_ID)) %>%
+  dplyr::arrange(Genotype) %>%
+  dplyr::select(Genotype, `ScRNA-Seq`, Exome_ID) %>%
+  `colnames<-`(c("Genotype", "scRNA-Seq", "Exome_ID"))
+
+## Re-order
+cnv_matrix = cnv_matrix[, sample_annot$Exome_ID]
+colnames(cnv_matrix) = rownames(sample_annot)
+```
+
+We define custom colors for the figure :
+
+```{r wes_colors}
+list_colors = list()
+list_colors[["Genotype"]] = setNames(nm = c("fl/fl", "fl/-"),
+                                     c("orange", "darkgreen"))
+list_colors[["scRNA-Seq"]] = setNames(nm = c("Yes", "No"),
+                                      c("black", "white"))
+```
+
+We define the annotation :
+
+```{r wes_annot}
+fontsize = 10
+
+ha_top = HeatmapAnnotation(
+  df = sample_annot[, c("Genotype", "scRNA-Seq")],
+  # cbar = anno_oncoprint_barplot(height = unit(2, "cm")),
+  col = list_colors,
+  annotation_name_side = "left",
+  annotation_name_gp = grid::gpar(fontsize = fontsize),
+  na_col = "#F7F7F7")
+```
+
+and draw the oncoplot :
+
+```{r wes_ht_cnv}
+ht_cnv = ComplexHeatmap::oncoPrint(cnv_matrix,
+                                   # Colors
+                                   alter_fun = alter_fun_cnv,
+                                   alter_fun_is_vectorized = TRUE,
+                                   # Barplot and annotation
+                                   col = vec_colors_cnv,
+                                   top_annotation = ha_top,
+                                   right_annotation = NULL,
+                                   # Legend
+                                   heatmap_legend_param = heatmap_legend_param,
+                                   # Sample names
+                                   show_column_names = TRUE,
+                                   # column_order = colnames(cnv_matrix),
+                                   column_names_gp = grid::gpar(fontsize = fontsize),
+                                   # Region names
+                                   row_names_side = "left",
+                                   row_names_gp = grid::gpar(fontsize = fontsize),
+                                   # row_order = rownames(cnv_matrix),
+                                   # % side
+                                   pct_side = "right",
+                                   pct_digits = 0)
+```
+
+```{r fig_wes_cnv_primary, fig.width = 12, fig.height = 8}
+ComplexHeatmap::draw(ht_cnv,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "left",
+                     annotation_legend_side = "left")
+```
+
+## SNV - primary
+
+We make the figure relative to SNV in primary tumors.
+
+### Load data
+
+We load the SNV table :
+
+```{r wes_load_snv_primary}
+snv_data = openxlsx::read.xlsx("./data/Figure_SNVs_MPNST-Paper.xlsx",
+                               sheet = 1, startRow = 4)
+snv_data = snv_data[, c(3:16)]
+dim(snv_data)
+```
+
+We extract the information regarding number of SNV per sample :
+
+```{r wes_nb_snv_data}
+nb_snv_data = snv_data[c(8:10), ]
+rownames(nb_snv_data) = nb_snv_data$X3
+nb_snv_data$X3 = NULL
+nb_snv_data = nb_snv_data %>%
+  mutate(across(everything(), as.numeric)) %>%
+  t()
+nb_snv_data
+```
+
+We split the snv table to keep only information regarding genes :
+
+```{r wes_keep_genes_info}
+snv_data = snv_data[c(25:nrow(snv_data)), ]
+rownames(snv_data) = snv_data$X3
+snv_data$X3 = NULL
+snv_data[is.na(snv_data) == TRUE] = ""
+snv_data[snv_data == "*"] = "snv;*"
+snv_data = as.matrix(snv_data)
+snv_data
+```
+
+We re-order the dataframe in the same order as the CNV table 
+
+```{r wes_reorder_snv}
+snv_data = snv_data[, sample_annot$Exome_ID]
+colnames(snv_data) = rownames(sample_annot)
+
+nb_snv_data = nb_snv_data[sample_annot$Exome_ID,]
+rownames(nb_snv_data) = rownames(sample_annot)
+```
+
+### Annotation
+
+We define the oncoplot annotation :
+
+```{r wes_snv_annot}
+# Barplot annotation
+breaks = c(1, 10, 100, 1000, 10000)
+ha_top = ComplexHeatmap::HeatmapAnnotation(
+  "Nb SNV" = anno_barplot(log10(as.matrix(nb_snv_data[, 1])),
+                          # gp = gpar(fill = c("lightgray", "gray50", "black")),
+                          axis_param = list(at = log10(breaks), labels = breaks),
+                          border = FALSE),
+  height = unit(2, "cm"),
+  annotation_name_side = "left")
+
+# Oncoprint colors
+vec_colors_snv = c("snv" = "mediumseagreen",
+                   "background" = "#F7F7F7")
+
+alter_fun_snv = list(
+  "background" = alter_graphic("rect", fill = vec_colors_snv[["background"]],
+                               width = 0.9, height = 0.9),
+  "snv" = alter_graphic("rect", fill = vec_colors_snv[["snv"]],
+                        width = 0.9, height = 0.9),
+  "*" = function(x, y, w, h) {
+    # grid.segments(x - w*0.4, y - h*0.4, x + w*0.4, y + h*0.4, gp = gpar(lwd = 2))
+    # grid.segments(x + w*0.4, y - h*0.4, x - w*0.4, y + h*0.4, gp = gpar(lwd = 2))
+    grid.points(x, y, pch = 16)
+  })
+
+heatmap_legend_param = list(title = "Single Nucleotide Variations",
+                            at = c("snv", "*"), 
+                            labels = c("SNV", "SNV AA-altered"))
+```
+
+and draw the oncoplot :
+
+```{r wes_ht_snv}
+ht_snv = ComplexHeatmap::oncoPrint(snv_data,
+                                   # Colors
+                                   alter_fun = alter_fun_snv,
+                                   alter_fun_is_vectorized = TRUE,
+                                   # Barplot and annotation
+                                   col = vec_colors_snv,
+                                   top_annotation = ha_top,
+                                   # top_annotation = NULL,
+                                   right_annotation = NULL,
+                                   # Legend
+                                   heatmap_legend_param = heatmap_legend_param,
+                                   # Sample names
+                                   show_column_names = TRUE,
+                                   # column_order = colnames(snv_data),
+                                   column_names_gp = grid::gpar(fontsize = fontsize),
+                                   # Region names
+                                   row_names_side = "left",
+                                   row_names_gp = grid::gpar(fontsize = fontsize),
+                                   row_order = rownames(snv_data),
+                                   # % side
+                                   pct_side = "right",
+                                   pct_digits = 0)
+```
+
+```{r, fig.width = 12, fig.height = 10}
+ComplexHeatmap::draw(ht_snv,
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "left",
+                     annotation_legend_side = "left")
+```
+## Primary
+
+To force same columns order but automatic ordering, and same columns size, we merge both figures :
+
+```{r, fig.width = 12, fig.height = 15}
+ht_list = ht_cnv %v% ht_snv
+
+ComplexHeatmap::draw(ht_list,
+                     ht_gap = unit(1.5, "cm"),
+                     merge_legend = TRUE,
+                     heatmap_legend_side = "bottom",
+                     annotation_legend_side = "bottom")
+```
+
+We clean the environment :
+
+```{r wes_clean_1}
+rm(sample_col_ids, sample_names, new_column_names, genes_oi,
+   cnv_group_fun, vec_colors_cnv, alter_fun_cnv, binarize,
+   cnv_data, cnv_matrix, fontsize, list_colors, heatmap_legend_param,
+   snv_data, nb_snv_data, ha_top, vec_colors_snv, alter_fun_snv, 
+   breaks, sample_annot,  ht_cnv, ht_snv, ht_list)
+```
+
+## SNV - transplanted
+
+TO DO in next version
 
 # Mouse
 
@@ -1141,10 +1662,58 @@ patchwork::wrap_plots(plot_list, widths = plot_content, nrow = 1) +
 This barplot represents the proportion of cell populations, by tumor type for all mice, except the two samples filtered for Tomato expression by FACS :
 
 ```{r fig4_C, class.source = 'fold-hide', fig.width = 4.5, fig.height = 4}
-aquarius::fig_plot_bp_tt(subsobj, groupby = "cell_type_simple",
-                         colors = color_markers_simple, family_color = family_color) +
-  Seurat::NoLegend()
+df_proportion = table(subsobj$tumor_type,
+                      subsobj$cell_family) %>%
+  prop.table(., margin = 1) %>%
+  as.data.frame.table() %>%
+  `colnames<-`(c("sample_type", "cell_family", "prop_cells"))
+
+plot_content = sample_info %>%
+  dplyr::filter(project_name %in% as.character(unique(subsobj$project_name))) %>%
+  dplyr::pull(tumor_type) %>% table()
+plot_content = setNames(nm = names(plot_content), as.vector(plot_content))
+
+plot_list = lapply(names(plot_content), FUN = function(st) {
+  p = df_proportion %>%
+    dplyr::filter(.data$sample_type == .env$st) %>%
+    aquarius::plot_barplot(.,
+                           x = "sample_type",
+                           y = "prop_cells",
+                           fill = "cell_family",
+                           position = ggplot2::position_fill()) +
+    ggplot2::scale_fill_manual(values = family_color,
+                               breaks = names(family_color),
+                               name = "Cell family") +
+    ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
+                                labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
+                                expand = c(0,0)) +
+    ggplot2::theme(axis.title.y = ggplot2::element_blank(),
+                   axis.line.x = ggplot2::element_line(colour = "lightgray"),
+                   plot.title = ggtext::element_textbox(hjust = 0.5,
+                                                        margin = margin(t = 5, b = 5)))
+  
+  return(p)
+})
+
+# Reorder
+names(plot_list) = names(plot_content)
+plot_list = plot_list[c("pNF", "dyNF", "MPNST")]
+plot_content = plot_content[names(plot_list)]
+
+# Remove legend except for the first one
+plot_list[c(2:length(plot_list))] = lapply(plot_list[c(2:length(plot_list))], FUN = function(p) {
+  p = p +
+    ggplot2::theme(axis.line.y = element_blank(),
+                   axis.text.y = element_blank(),
+                   axis.ticks.y = element_blank())
+  return(p)
+})
+
+# Patchwork
+patchwork::wrap_plots(plot_list, nrow = 1) +
+  patchwork::plot_layout(guides = "collect")
 ```
+
 
 This dotplot assesses the cell type annotation :
 
@@ -1521,13 +2090,13 @@ genes_heatmap = list(group1 = c("Mpz", "Mbp", "S100b", "Rxrg", "Kcna1", "Rarres2
                                 "C4b", "Vwa1", "Scn7a", "Adam23", "Art3", "Fxyd1", "Cadm1",
                                 "Cd59a", "Chl1", "Cmtm5", "Itga1", "Cdh19", "Aatk",
                                 "Lgi4", "Plp1", "Erbb3", "L1cam", "Cadm4", "Sox10", "Foxd3",
-                                "Mcam", "Ngfr", "Cdkn2a", "Moxd1", "Pdgfb", "Uchl1", "Tagln", "Pdgfa",
-                                "Postn"),
+                                "Mcam", "Ngfr", "Cdkn2a", "Moxd1", "Uchl1", "Pdgfb",
+                                "Tagln", "Acta2", "Nes", "Pdgfa", "Postn"),
                      group2 = c("Ccnd1",  "Tnfrsf12a", "Snrpd3", "Tgfbi", "Actr3",
                                 "Nme1", "Mif", "Pfn1", "Ybx1", "Ran", "Lgals1",
                                 "Snrpf", "Nudc", "Gapdh", "Snrpd1",
                                 "S100a6", "Nucks1", "Ube2s", "H2afz", "Banf1",
-                                "Hmga2", "Crabp1", "Acta2", "Cd34", "Cks1b",
+                                "Hmga2", "Crabp1", "Cd34", "Cks1b",
                                 "Dut", "Tubb6", "Lyar", "Tyms", "Dctpp1", "Mcm6",
                                 "Top2a", "Birc5", "Mki67"),
                      group3 = c("Nfkbia", "Bgn", "Spp1", "Pdlim2", "Fn1", "Cpe", "Tcf4", "Cst3",
@@ -2069,7 +2638,7 @@ rm(ha_top, ht, ha_bottom, list_colors, mat_expression, name2D, name_side,
    sobj, features, group_colors, sample_info, mouse_dir,
    reduction_tsne, df_score_group1, df_score_group2, df_score_group3,
    group1_gs_name, group2_gs_name, group3_gs_name,
-   upper_bound, plot_content, func_enr_list)
+   plot_content, func_enr_list)
 ```
 
 
@@ -2078,7 +2647,11 @@ rm(ha_top, ht, ha_bottom, list_colors, mat_expression, name2D, name_side,
 In this section, we make the figures related to transplantation experiment.
 
 ```{r graft_settings}
-sample_info = readRDS(paste0(graft_dir, "/1_metadata/graft_sample_info.rds"))
+sample_info = readRDS(paste0(graft_dir, "/1_metadata/graft_sample_info.rds")) %>%
+  dplyr::mutate(sample_identifier = ifelse(sample_identifier == "donor",
+                                           yes = "primary",
+                                           no = "transplanted"))
+sample_info
 ```
 
 
@@ -2091,7 +2664,7 @@ sobj = readRDS(paste0(graft_dir, "/4_tumor_cells/graft_tumor_cells_sobj_traj_sli
 name2D = "mnn_dm_umap"
 
 sobj$sample_identifier = ifelse(is.na(sobj$sample_identifier),
-                                yes = "donor", no = "recipient")
+                                yes = "primary", no = "transplanted")
 
 sobj
 ```
@@ -2174,7 +2747,7 @@ plot_list = lapply(genes_oi,
                                                            myred = name2D,
                                                            gene = one_gene,
                                                            gene_expression_colors = aquarius::color_gene,
-                                                           pt.size = 0.10) +
+                                                           pt.size = 0.10, order = TRUE) +
                        ggplot2::labs(title = one_gene) +
                        ggplot2::theme(axis.title = element_blank(),
                                       axis.line = element_blank(),
@@ -2284,6 +2857,8 @@ ht = ComplexHeatmap::Heatmap(as.matrix(mat_expression),
                              top_annotation = ha_top,
                              bottom_annotation = ha_bottom,
                              # Cells grouping
+                             column_split = !is.na(sobj$pseudotime),
+                             column_gap = unit(2, "mm"),
                              column_title = NULL,
                              # Cells order
                              column_order = order(sobj$pseudotime, na.last = FALSE),
@@ -2294,6 +2869,7 @@ ht = ComplexHeatmap::Heatmap(as.matrix(mat_expression),
                              # Gene grouping
                              row_split = features_group,
                              row_gap = unit(2, "mm"),
+                             row_title = NULL,
                              # row_title = NULL,
                              cluster_rows = FALSE,
                              show_row_dend = FALSE,
@@ -2728,13 +3304,8 @@ ComplexHeatmap::draw(ht, # legend_grouping = "original",
 
 ```{r clean_patients, echo = FALSE}
 rm(ha_bottom, ha_top, ht, list_colors, mat_expression,
-   plot_list, sobj, features, name_side, name2D, good_order,
-   genes_tom_traj, patient_dir)
+   plot_list, sobj_full, features, name_side, name2D, patient_dir)
 ```
-
-
-
-
 
 
 # R Session
