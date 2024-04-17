@@ -162,7 +162,7 @@ rm(sample_info, plot_list)
 We open the table :
 
 ```{r load_sh_tab}
-sh_tab = openxlsx::read.xlsx(paste0(analysis_dir, "/Validation target SH.xlsx"), sheet = 3)
+sh_tab = openxlsx::read.xlsx(paste0(analysis_dir, "/data/Validation target SH.xlsx"), sheet = 3)
 sh_tab$id = paste(sh_tab$sh_id, sh_tab$jour, sep = "_DAY_")
 sh_tab = sh_tab %>%
   dplyr::filter(!(id %in% c("Sox9 clone 22-5_DAY_14", "Sox9 clone 22-6_DAY_14")))
@@ -199,77 +199,6 @@ long_sh_tab$sh_ctrl = c(rep("ctrl", nrow(long_sh_tab)/2),
                         rep("sh", nrow(long_sh_tab)/2))
 
 head(long_sh_tab)
-```
-
-We make the figure :
-
-```{r sh_figure, fig.width = 12, fig.height = 5, class.source = "fold-hide"}
-plot_content = setNames(nm = names(table(long_sh_tab$sh_gene)),
-                        as.vector(table(long_sh_tab$sh_gene)))
-
-plot_list = lapply(names(plot_content), FUN = function(one_gene) {
-  # Data for gene of interest
-  sub_long_sh_tab = long_sh_tab %>%
-    dplyr::filter(.data$sh_gene == .env$one_gene)
-  sub_long_sh_tab$id_simple = c(1:nrow(sub_long_sh_tab))
-  sub_my_ttest = my_ttest %>%
-    dplyr::filter(.data$id %in% sub_long_sh_tab$id)
-  sub_my_ttest$x = c(1:nrow(sub_my_ttest))
-  
-  # Plot
-  p = ggplot2::ggplot(sub_long_sh_tab, aes(x = id, y = mass, color = sh_ctrl)) +
-    # Box plot and point inside
-    ggplot2::geom_boxplot(alpha = 0.1, width = 0.75) +
-    ggplot2::geom_point(position = position_dodge(width = 0.75)) +
-    # Horizontal bar for paired t-test
-    ggplot2::geom_segment(data = sub_my_ttest, inherit.aes = FALSE,
-                          aes(x = x - 0.4, xend = x + 0.4,
-                              y = 1.15*max(sub_long_sh_tab$mass),
-                              yend = 1.15*max(sub_long_sh_tab$mass))) +
-    # p-value
-    ggplot2::geom_label(data = sub_my_ttest, inherit.aes = FALSE,
-                        aes(x = x,
-                            y = 1.10*max(sub_long_sh_tab$mass),
-                            label = format(round(pvalue, 2), nsmall = 2)),
-                        fill = NA, label.size = 0) +
-    # Significance
-    ggplot2::geom_label(data = sub_my_ttest, inherit.aes = FALSE,
-                        aes(x = x,
-                            y = case_when(pvalue > 0.05 ~ 1.21*max(sub_long_sh_tab$mass),
-                                          pvalue < 0.05 ~ 1.17*max(sub_long_sh_tab$mass)),
-                            size = case_when(pvalue > 0.05 ~ 1,
-                                             pvalue < 0.05 ~ 2),
-                            label = case_when(pvalue > 0.05 ~ "n.s.",
-                                              pvalue > 0.01 & pvalue < 0.05 ~ "*",
-                                              pvalue > 0.001 & pvalue < 0.01 ~ "**",
-                                              pvalue < 0.001 ~ "***")),
-                        fill = NA, label.size = 0, size = 5) +
-    ggplot2::scale_radius(range = c(4, 7), guide = "none") +
-    # Theme
-    ggplot2::scale_x_discrete(labels = sub_long_sh_tab$id_simple) +
-    ggplot2::scale_y_continuous(breaks = seq(0, 1.1*max(sub_long_sh_tab$mass), by = 0.25),
-                                labels = format(seq(0, 1.1*max(sub_long_sh_tab$mass), by = 0.25), nsmall = 2),
-                                limits = c(0, 1.23*max(sub_long_sh_tab$mass)),
-                                expand = c(0,0)) +
-    ggplot2::labs(title = one_gene) +
-    ggplot2::guides(color = guide_legend(title = "Tumor")) +
-    ggplot2::theme_classic() +
-    ggplot2::theme(plot.title = element_text(hjust = 0.5),
-                   text = element_text(size = 20),
-                   axis.line.x = element_line(colour = "lightgray"),
-                   axis.title = element_blank())
-  
-  # Output
-  return(p)
-})
-
-plot_list[[1]] = plot_list[[1]] +
-  ggplot2::labs(y = "Tumor mass (g)") +
-  ggplot2::theme(axis.title.y = element_text(size = 20))
-
-# Patchwork
-patchwork::wrap_plots(plot_list, widths = plot_content, nrow = 1) +
-  patchwork::plot_layout(guides = "collect")
 ```
 
 We make the figure for a subset of experiments :
@@ -345,7 +274,7 @@ rm(sh_tab, long_sh_tab, my_ttest, plot_content, plot_list, clones_oi)
 We open the table :
 
 ```{r si_read_table}
-si_tab = read.csv(paste0(analysis_dir, "/SOX9-LSS06-Spike-Results-manuscript.csv")) %>%
+si_tab = read.csv(paste0(analysis_dir, "/data/SOX9-LSS06-Spike-Results-manuscript.csv")) %>%
   dplyr::mutate(Treatment = ifelse(Treatment == "siCTL",
                                    yes = "si-ctrl",
                                    no = "si-Sox9"))
@@ -559,7 +488,7 @@ genes_oi = c("Acta2", "Btg1", "Dcn", "Lum",
 
 We arrange the grouped dataframe :
 
-```{r wes_arrange_grouped}
+```{r wes_arrange_grouped, class.source = "fold-hide"}
 cnv_group_fun = function(sub_dataframe) {
   grouped_row = list()
   
@@ -751,7 +680,7 @@ ht_cnv = ComplexHeatmap::oncoPrint(cnv_matrix,
                                    pct_digits = 0)
 ```
 
-```{r fig_wes_cnv_primary, fig.width = 12, fig.height = 8}
+```{r figWES_CNV_primary, fig.width = 12, fig.height = 8}
 ComplexHeatmap::draw(ht_cnv,
                      merge_legend = TRUE,
                      heatmap_legend_side = "left",
@@ -794,7 +723,8 @@ snv_data$X3 = NULL
 snv_data[is.na(snv_data) == TRUE] = ""
 snv_data[snv_data == "*"] = "snv;*"
 snv_data = as.matrix(snv_data)
-snv_data
+
+snv_data[c(1:5), c(1:3)]
 ```
 
 We re-order the dataframe in the same order as the CNV table 
@@ -869,7 +799,7 @@ ht_snv = ComplexHeatmap::oncoPrint(snv_data,
                                    pct_digits = 0)
 ```
 
-```{r, fig.width = 12, fig.height = 10}
+```{r figWES_SNV_primary, fig.width = 12, fig.height = 10}
 ComplexHeatmap::draw(ht_snv,
                      merge_legend = TRUE,
                      heatmap_legend_side = "left",
@@ -879,7 +809,7 @@ ComplexHeatmap::draw(ht_snv,
 
 To force same columns order but automatic ordering, and same columns size, we merge both figures :
 
-```{r, fig.width = 12, fig.height = 15}
+```{r figWES_primary, fig.width = 12, fig.height = 15}
 ht_list = ht_cnv %v% ht_snv
 
 ComplexHeatmap::draw(ht_list,
@@ -1048,19 +978,6 @@ names(color_markers)[names(color_markers) == "mDC"] = "DC"
 
 ### Cell type composition
 
-We visualize the clustering :
-
-```{r mpnst_clustering, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-Seurat::DimPlot(sobj, group.by = "seurat_clusters",
-                reduction = reduction_tsne, label = TRUE) +
-  ggplot2::labs(title = "Clustering",
-                subtitle = paste0(length(colnames(sobj)), " cells")) +
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
-                 plot.subtitle = element_text(hjust = 0.5, face = "bold", size = 12),
-                 aspect.ratio = 1) +
-  Seurat::NoAxes() + Seurat::NoLegend()
-```
-
 This figure represent cell types annotation from all MPNST datasets.
 
 ```{r fig3_A1, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
@@ -1082,28 +999,6 @@ plot_list = aquarius::plot_split_dimred(sobj,
 plot_list
 ```
 
-We make also the figures for simple cell type :
-
-```{r fig3_A1_simple, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-aquarius::fig_plot_dimplot(sobj, reduction_tsne, "cell_type_simple",
-                           color_markers_simple, title = "MPNST atlas", order = "TOM+ cells")
-```
-
-This figure represent cell types annotation split by genotype :
-
-```{r fig3_A1_split_simple, class.source = 'fold-hide', fig.width = 8, fig.height = 5}
-plot_list = aquarius::plot_split_dimred(sobj,
-                                        reduction = reduction_tsne,
-                                        split_by = "genotype",
-                                        group_by = "cell_type_simple",
-                                        group_color = unlist(color_markers_simple),
-                                        main_pt_size = 0.1,
-                                        bg_pt_size = 0.1)
-
-plot_list
-```
-
-
 This figure represent Tomato expression to justify tumor cells annotation.
 
 ```{r fig3_A2, class.source = 'fold-hide', fig.width = 6, fig.height = 5}
@@ -1115,84 +1010,6 @@ This figure represents Prss56 expression :
 ```{r fig_supp_mpnst_prss56, class.source = 'fold-hide', fig.width = 6, fig.height = 5}
 aquarius::fig_plot_feature(sobj, reduction_tsne, gene = "Prss56",
                            gene_expression_colors = aquarius::color_gene, order = TRUE)
-```
-
-This figure represents Ptprc expression :
-
-```{r fig_supp_mpnst_ptprc, class.source = 'fold-hide', fig.width = 6, fig.height = 5}
-aquarius::fig_plot_feature(sobj, reduction_tsne, gene = "Ptprc",
-                           gene_expression_colors = aquarius::color_gene, order = TRUE)
-```
-
-This figure represents Top2a expression :
-
-```{r fig_supp_mpnst_top2a, class.source = 'fold-hide', fig.width = 6, fig.height = 5}
-aquarius::fig_plot_feature(sobj, reduction_tsne, gene = "Top2a",
-                           gene_expression_colors = aquarius::color_gene, order = TRUE)
-```
-
-This figure represents Mki67 expression :
-
-```{r fig_supp_mpnst_mki67, class.source = 'fold-hide', fig.width = 6, fig.height = 5}
-aquarius::fig_plot_feature(sobj, reduction_tsne, gene = "Mki67",
-                           gene_expression_colors = aquarius::color_gene, order = TRUE)
-```
-
-This figure shows that batch-effect is removed on this projection. It also show cell cycle phase, and a quality metric : the percentage of UMI by cell, for mitochondrial genes 
-
-```{r fig_supp_mpnst_qc, class.source = 'fold-hide', fig.width = 8, fig.height = 8}
-set.seed(1)
-cells_id = sample(colnames(sobj), size = ncol(sobj), replace = FALSE)
-
-plot_list = list()
-
-## Sample of origin
-plot_list[[1]] = Seurat::DimPlot(sobj,
-                                 group.by = "orig.ident",
-                                 reduction = reduction_tsne,
-                                 cols = setNames(nm = sample_info$project_name,
-                                                 sample_info$color)[levels(sobj$orig.ident)],
-                                 order = cells_id) +
-  ggplot2::labs(title = "Sample of origin") +
-  ggplot2::guides(col = guide_legend(ncol = 1, title = "Sample name",
-                                     override.aes = list(size = 2))) +
-  ggplot2::theme(legend.position = "right",
-                 legend.direction = "vertical")
-
-## Cell cycle
-plot_list[[2]] = Seurat::DimPlot(sobj,
-                                 group.by = "Seurat.Phase",
-                                 reduction = reduction_tsne) +
-  ggplot2::scale_color_manual(values = aquarius::gg_color_hue(3),
-                              labels = c("G0 / G1", "G2M", "S")) +
-  ggplot2::labs(title = "Cell cycle phase") +
-  ggplot2::theme(legend.position = c(0.85, 0.15),
-                 legend.direction = "vertical",
-                 legend.key.size = grid::unit(0.15, 'lines')) +
-  ggplot2::guides(col = guide_legend(override.aes = list(size = 1.5)))
-
-## Mitochondrial genes expression
-plot_list[[3]] = Seurat::FeaturePlot(sobj,
-                                     features = "percent.mt",
-                                     reduction = reduction_tsne) +
-  ggplot2::scale_color_gradientn(colors = aquarius::color_gene,
-                                 name = "Proportion") +
-  ggplot2::labs(title = "Proportion of transcripts\n from mitochondrial genes") +
-  ggplot2::theme(legend.position = c(0.20, -0.18),
-                 legend.direction = "horizontal")
-
-## Change theme
-plot_list = lapply(plot_list, FUN = function(one_plot) {
-  one_plot = one_plot &
-    ggplot2::theme(aspect.ratio = 1,
-                   plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
-                   legend.text = element_text(size = 9),
-                   legend.title = element_text(size = 11)) +
-    Seurat::NoAxes()
-  return(one_plot)
-})
-
-plot_list
 ```
 
 This barplot represents the composition of each dataset in cell populations :
@@ -1391,7 +1208,7 @@ df_quantities$nb_cells = rowSums(table(sobj$cell_type, sobj$sample_identifier))
 df_quantities = rbind(df_quantities,
                       c("Number of cells", as.numeric(table(sobj$sample_identifier)), ncol(sobj)))
 
-openxlsx::write.xlsx(df_quantities, file = "./mpnst_cell_quantities.xlsx")
+openxlsx::write.xlsx(df_quantities, file = "./data/mpnst_cell_quantities.xlsx")
 ```
 
 
@@ -1479,19 +1296,6 @@ sobj_full$cell_family = custom_order_cell_type[as.character(sobj_full$cell_type_
 
 ### Cell type composition
 
-We visualize the clustering :
-
-```{r flfl_clustering, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-Seurat::DimPlot(sobj_full, group.by = "seurat_clusters",
-                reduction = reduction_tsne, label = TRUE) +
-  ggplot2::labs(title = "Clustering",
-                subtitle = paste0(length(colnames(sobj_full)), " cells")) +
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
-                 plot.subtitle = element_text(hjust = 0.5, face = "bold", size = 12),
-                 aspect.ratio = 1) +
-  Seurat::NoAxes() + Seurat::NoLegend()
-```
-
 This figure represent cell types annotation from all mouse datasets.
 
 ```{r fig4_A1, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
@@ -1511,27 +1315,6 @@ plot_list = aquarius::plot_split_dimred(sobj_full,
 
 plot_list
 ```
-
-We make also the figures for simple cell type :
-
-```{r fig4_A1_simple, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-aquarius::fig_plot_dimplot(sobj_full, reduction_tsne, "cell_type_simple", color_markers_simple, title = "PNST atlas")
-```
-
-This figure represent cell types annotation split by tumor type :
-
-```{r fig4_A1_split_simple, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-plot_list = aquarius::plot_split_dimred(sobj_full,
-                                        reduction = reduction_tsne,
-                                        split_by = "tumor_type",
-                                        group_by = "cell_type_simple",
-                                        group_color = unlist(color_markers_simple),
-                                        main_pt_size = 0.1,
-                                        bg_pt_size = 0.1)
-
-plot_list
-```
-
 
 This figure represents Tomato expression to justify tumor cells annotation.
 
@@ -1807,7 +1590,7 @@ df_quantities$nb_cells = rowSums(table(sobj_full$cell_type, sobj_full$sample_ide
 df_quantities = rbind(df_quantities,
                       c("Number of cells", as.numeric(table(sobj_full$sample_identifier)), ncol(sobj_full)))
 
-openxlsx::write.xlsx(df_quantities, file = "./flfl_cell_quantities.xlsx")
+openxlsx::write.xlsx(df_quantities, file = "./data/flfl_cell_quantities.xlsx")
 ```
 
 ```{r clean_prop, echo = FALSE}
@@ -1862,24 +1645,6 @@ Seurat::DimPlot(sobj_full, group.by = "is_fibroblasts", reduction = reduction_ts
                  aspect.ratio = 1)
 ```
 
-We color them according to fibroblasts sub-annotation :
-
-```{r figFibro_A_bis,  fig.width = 6, fig.height = 6}
-sobj_full$FB_type = sobj$FB_type[colnames(sobj_full)]
-sobj_full$FB_type = ifelse(is.na(sobj_full$FB_type),
-                           yes = "non_fibro",
-                           no = as.character(sobj_full$FB_type))
-
-Seurat::DimPlot(sobj_full, group.by = "FB_type", reduction = reduction_tsne,
-                cols = color_fibro, order = names(color_fibro), na.value = "lightgray") +
-  ggplot2::labs(x = "tSNE 1", y = "tSNE 2", title = "Fibroblasts",
-                subtitle = paste0(length(colnames(sobj)), " cells")) +
-  Seurat::NoAxes() +
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
-                 plot.subtitle = element_text(hjust = 0.5, face = "bold", size = 12),
-                 aspect.ratio = 1)
-```
-
 This figure represents the fibroblasts annotation for all datasets, and the proportion of those populations by tumor type.
 
 ```{r figFibro_B, fig.width = 10, fig.height = 5}
@@ -1893,91 +1658,6 @@ p2 = aquarius::fig_plot_bp_tt(sobj, groupby = "FB_type", colors = color_fibro,
 patchwork::wrap_plots(p1, p2) +
   patchwork::plot_layout(width = c(4, 1.5))
 ```
-
-We visualize the clustering :
-
-```{r fibro_clustering, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-Seurat::DimPlot(sobj, group.by = "seurat_clusters",
-                reduction = name2D, label = TRUE) +
-  ggplot2::labs(title = "Clustering",
-                subtitle = paste0(length(colnames(sobj)), " cells")) +
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
-                 plot.subtitle = element_text(hjust = 0.5, face = "bold", size = 12),
-                 aspect.ratio = 1) +
-  Seurat::NoAxes() + Seurat::NoLegend()
-```
-
-This figure represents the sample of origin, to assess batch-effect correction of the projection, cell cycle phase of each cell, and fibroblast subtypes annotation.
-
-```{r figFibro_A2, fig.width = 7, fig.height = 6, class.source = 'fold-hide'}
-plot_list = list()
-
-## Color by sample
-plot_list[[1]] = Seurat::DimPlot(sobj,
-                                 group.by = "sample_identifier",
-                                 reduction = name2D,
-                                 pt.size = 0.25) +
-  ggplot2::scale_color_manual(values = sample_info$color,
-                              breaks = sample_info$sample_identifier) +
-  ggplot2::labs(title = paste(ncol(sobj), "fibroblast cells from",
-                              length(unique(sobj$sample_identifier)), "samples", sep = " ")) +
-  ggplot2::guides(col = guide_legend(ncol = 1, title = "Sample name",
-                                     override.aes = list(size = 2))) +
-  ggplot2::theme(legend.position = "none")
-
-## Color by subpopulation
-plot_list[[2]] = Seurat::DimPlot(sobj,
-                                 group.by = "FB_type",
-                                 reduction = name2D,
-                                 pt.size = 0.25) +
-  ggplot2::scale_color_manual(values = color_fibro,
-                              labels = names(color_fibro)) +
-  ggplot2::labs(title = "Fibroblast subtypes") +
-  ggplot2::theme(legend.position = c(0.01, 0.08),
-                 legend.direction = "vertical") +
-  ggplot2::guides(col = guide_legend(override.aes = list(size = 4)))
-
-## Color by cell cycle
-plot_list[[3]] = Seurat::DimPlot(sobj,
-                                 group.by = "Seurat.Phase",
-                                 reduction = name2D,
-                                 pt.size = 0.25) +
-  ggplot2::scale_color_manual(values = aquarius::gg_color_hue(3),
-                              labels = c("G0 / G1", "G2M", "S")) +
-  ggplot2::labs(title = "Cell cycle phase") +
-  ggplot2::theme(legend.position = c(0.01, 0.08),
-                 legend.direction = "vertical") +
-  ggplot2::guides(col = guide_legend(override.aes = list(size = 4)))
-
-## Same theme
-plot_list = lapply(plot_list, FUN = function(one_plot) {
-  one_plot +
-    ggplot2::theme(aspect.ratio = 1,
-                   plot.title = element_text(hjust = 0.5)) +
-    Seurat::NoAxes()
-})
-
-## Patchwork
-plot_list
-```
-
-
-This is a representation of fibroblasts split by tumor type :
-
-```{r figFibro_A3, class.source = 'fold-hide', fig.width = 7, fig.height = 6}
-plot_list = aquarius::plot_split_dimred(sobj = sobj,
-                                        reduction = name2D,
-                                        split_by = "tumor_type",
-                                        split_color = c(pNF = "blue",
-                                                        dyNF = "green",
-                                                        MPNST = "brown"),
-                                        bg_pt_size = 0.01,
-                                        main_pt_size = 0.01)
-
-# Patchwork
-plot_list
-```
-
 
 This is a figure showing gene expression, for genes of interest.
 
@@ -1999,27 +1679,6 @@ plot_list = lapply(genes_fibro,
 names(plot_list) = genes_fibro
 plot_list
 ```
-
-For those fibroblasts, we can also represent quality metrics :
-
-```{r figFibro_Z, fig.width = 5, fig.height = 3, class.source = 'fold-hide'}
-plot_list = lapply(c("log_nCount_RNA", "nFeature_RNA", "percent.mt", "percent.rb"), FUN = function(metric) {
-  Seurat::FeaturePlot(sobj, reduction = name2D,
-                      features = metric) +
-    ggplot2::scale_color_gradientn(colors = aquarius::color_gene) +
-    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
-                   legend.text = element_text(size = 9),
-                   aspect.ratio = 1) +
-    Seurat::NoAxes()
-})
-plot_list[[1]] = plot_list[[1]] + ggplot2::ggtitle("Log number of UMI\n  ")
-plot_list[[2]] = plot_list[[2]] + ggplot2::ggtitle("Number of genes with\n positive number of counts")
-plot_list[[3]] = plot_list[[3]] + ggplot2::ggtitle("Proportion of transcripts\n from mitochondrial genes")
-plot_list[[4]] = plot_list[[4]] + ggplot2::ggtitle("Proportion of transcripts\n from ribosomal genes")
-
-plot_list
-```
-
 
 ### Heatmap
 
@@ -2234,69 +1893,6 @@ plot_list = lapply(plot_list, FUN = function(one_plot) {
 plot_list
 ```
 
-We visualize the clustering :
-
-```{r tumor_clustering, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-Seurat::DimPlot(sobj, group.by = "seurat_clusters",
-                reduction = name2D, label = TRUE) +
-  ggplot2::labs(title = "Clustering",
-                subtitle = paste0(length(colnames(sobj)), " cells")) +
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
-                 plot.subtitle = element_text(hjust = 0.5, face = "bold", size = 12),
-                 aspect.ratio = 1) +
-  Seurat::NoAxes() + Seurat::NoLegend()
-```
-
-This is a barplot depicted glial vs mesenchymal contribution to tumor cells population, in each sample. Warning : "high mito" cells are not there, and they are all glial cells present in dyNF samples from fl/fl samples, the proportion of mesenchymal cells is over-estimated. Moreover, pay attention to the number of cells in each sample. For some samples, 100 \% of cells correspond to 500 cells, and in some other, thousands of tumor cells were available.
-
-```{r fig5_Z, class.source = "fold-hide", fig.width = 12, fig.height = 3.5}
-sobj$Sox10_on_Sox9 = Seurat::FetchData(sobj, "Plp1")[, 1] / (Seurat::FetchData(sobj, "Dcn")[, 1] + Seurat::FetchData(sobj, "Plp1")[, 1] + 0.001)
-Sox_group = sobj@meta.data %>%
-  dplyr::select(seurat_clusters, Sox10_on_Sox9) %>%
-  dplyr::group_by(seurat_clusters) %>%
-  dplyr::summarise(Sox_group = mean(Sox10_on_Sox9)) %>%
-  dplyr::mutate(Sox_group = ifelse(Sox_group > 0.2, yes = "glial", no = "mesenchymal")) %>%
-  as.data.frame()
-Sox_group = setNames(nm = Sox_group$seurat_clusters,
-                     Sox_group$Sox_group)
-sobj$Sox_group = Sox_group[sobj$seurat_clusters]
-
-#### Plot
-Sox_group = table(sobj$mouse_identifier,
-                  sobj$Sox_group) %>%
-  prop.table(., margin = 1) %>%
-  as.data.frame.table() %>%
-  `colnames<-`(c("mouse_identifier", "Sox_group", "prop_cells"))
-
-plot_list = list()
-
-plot_list[[1]] = aquarius::plot_barplot(Sox_group,
-                                        x = "mouse_identifier",
-                                        y = "prop_cells",
-                                        fill = "Sox_group",
-                                        position = ggplot2::position_fill()) +
-  ggplot2::scale_fill_manual(values = c("#6aa84f", "#a61c00"),
-                             breaks = c("glial", "mesenchymal"),
-                             name = "Sox group") +
-  ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
-                              labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
-                              expand = c(0,0)) +
-  ggplot2::theme(axis.title.y = ggplot2::element_blank(),
-                 axis.line.x = ggplot2::element_line(colour = "lightgray"),
-                 plot.title = ggtext::element_textbox(hjust = 0.5,
-                                                      margin = margin(t = 5, b = 5))) +
-  Seurat::NoLegend()
-
-plot_list[[2]] = Seurat::DimPlot(sobj, reduction = name2D, group.by = "Sox_group") +
-  ggplot2::scale_color_manual(values = c("#6aa84f", "#a61c00"),
-                              breaks = c("glial", "mesenchymal"),
-                              name = "Sox group") +
-  ggplot2::theme(aspect.ratio = 1) +
-  Seurat::NoAxes()
-
-patchwork::wrap_plots(plot_list, nrow = 1, widths = c(1,0.4))
-```
-
 
 This is a representation of tumor cells for each sample of origin :
 
@@ -2331,26 +1927,6 @@ plot_list = lapply(c(genes_tom_traj, "dtTomato"),
                      return(one_plot)
                    })
 names(plot_list) = c(genes_tom_traj, "dtTomato")
-plot_list
-```
-
-For those tumor cells, we can also represent quality metrics :
-
-```{r figS2_Z, fig.width = 5, fig.height = 3, class.source = 'fold-hide'}
-plot_list = lapply(c("log_nCount_RNA", "nFeature_RNA", "percent.mt", "percent.rb"), FUN = function(metric) {
-  Seurat::FeaturePlot(sobj, reduction = name2D,
-                      features = metric) +
-    ggplot2::scale_color_gradientn(colors = aquarius::color_gene) +
-    ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 12),
-                   legend.text = element_text(size = 9),
-                   aspect.ratio = 1) +
-    Seurat::NoAxes()
-})
-plot_list[[1]] = plot_list[[1]] + ggplot2::ggtitle("Log number of UMI\n  ")
-plot_list[[2]] = plot_list[[2]] + ggplot2::ggtitle("Number of genes with\n positive number of counts")
-plot_list[[3]] = plot_list[[3]] + ggplot2::ggtitle("Proportion of transcripts\n from mitochondrial genes")
-plot_list[[4]] = plot_list[[4]] + ggplot2::ggtitle("Proportion of transcripts\n from ribosomal genes")
-
 plot_list
 ```
 
@@ -2991,25 +2567,10 @@ Same figure split by tumor type :
 plot_list = aquarius::plot_split_dimred(sobj_full,
                                         reduction = reduction_tsne,
                                         split_by = "tumor_type",
-                                        group_by = "cell_type",
+                                        group_by = "cluster_type",
                                         group_color = unlist(color_markers),
                                         main_pt_size = 0.1,
                                         bg_pt_size = 0.1)
-
-plot_list
-```
-
-DLK1 split by tumor type :
-
-```{r figPatients_DLK1, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-plot_list = aquarius::plot_split_dimred(sobj_full,
-                                        reduction = reduction_tsne,
-                                        split_by = "tumor_type",
-                                        color_by = "DLK1",
-                                        main_pt_size = 0.1,
-                                        bg_pt_size = 0.1,
-                                        bg_color = "gray98",
-                                        order = TRUE)
 
 plot_list
 ```
@@ -3059,58 +2620,6 @@ aquarius::fig_plot_dotplot(sobj_full,
 rm(dotplot_markers, markers)
 ```
 
-## Zoom on fibroblasts
-
-```{r sobj_fibro_patients}
-sobj_fibro = subset(sobj_full, cluster_type == "fibroblasts")
-sobj_fibro
-```
-
-```{r figPatients_fibro_loc, fig.width = 6, fig.height = 6}
-sobj_full$is_fibro = colnames(sobj_full) %in% colnames(sobj_fibro)
-
-Seurat::DimPlot(sobj_full, group.by = "is_fibro", reduction = reduction_tsne,
-                cols = c("lightgray", color_markers[["fibroblasts"]])) +
-  ggplot2::labs(x = "tSNE 1", y = "tSNE 2", title = "Fibroblasts",
-                subtitle = paste0(length(colnames(sobj_fibro)), " cells")) +
-  Seurat::NoLegend() + Seurat::NoAxes() +
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15),
-                 plot.subtitle = element_text(hjust = 0.5, face = "bold", size = 12),
-                 aspect.ratio = 1)
-```
-Features and violin plots for genes of interest :
-
-```{r figPatients_fibro_vln, fig.width = 8, fig.height = 5}
-genes = list("caf" = c("Postn", "Loxl1", "Thy1", "Col14a1", "Col16a1", "Lsp1", "Pi16", "Ptprs", "Arap1",
-                       "Cilp", "Ptn", "Mest", "Tnc", "Plagl1"),
-             "endo" = c("Apod", "Apoe", "Cp", "Gpc3", "Ccl11", "Tgfbi", "Cpe", "Crispld2", "Vwa1", "Vit"),
-             "peri" = c("Lrp4", "Hspb1", "Itga6", "Cav1", "Wnt6", "Cav2", "Sdpr", "Itgb4", "Sfrp5", "Ildr2"),
-             "epi" = c("Clec3b", "Ifi205", "Adamts5", "Gdf10", "Hspb8", "Gda", "Lgals3", "C7", "Fst", "Gpnmb")) %>%
-  unlist() %>% unname() %>% toupper()
-genes[!(genes %in% rownames(sobj_full))]
-genes = genes[genes %in% rownames(sobj_full)]
-
-plot_list = lapply(genes, FUN = function(one_gene) {
-  p1 = Seurat::VlnPlot(sobj_fibro, features = one_gene,
-                       group.by = "tumor_type", pt.size = 0.05,
-                       col = setNames(nm = c("pNF", "dyNF", "MPNST"),
-                                      c("blue", "green", "purple"))) +
-    Seurat::NoLegend() +
-    ggplot2::theme(axis.title.x = element_blank())
-  
-  p2 = aquarius::fig_plot_feature(sobj_full, reduction_tsne, gene = one_gene,
-                                  gene_expression_colors = aquarius::color_gene)
-  
-  p = patchwork::wrap_plots(p2, p1, nrow = 1,
-                            widths = c(2.5, 1.5))
-  
-  return(p)
-})
-
-plot_list
-```
-
-
 ## Zoom on tumor cells
 
 We load the tumor cells object :
@@ -3157,20 +2666,6 @@ Seurat::DimPlot(sobj_tum,
   ggplot2::guides(col = guide_legend(override.aes = list(size = 3))) +
   Seurat::NoAxes()
 ```
-We split the figure by sample :
-
-```{r figPatients_tum_split, class.source = 'fold-hide', fig.width = 1.5, fig.height = 1.7}
-plot_list = aquarius::plot_split_dimred(sobj = sobj_tum,
-                                        reduction = name2D,
-                                        split_by = "project_name",
-                                        split_color = sample_info$color,
-                                        bg_pt_size = 0.01,
-                                        main_pt_size = 0.01)
-
-# Patchwork
-plot_list
-```
-
 
 We represent expression level for some genes of interest :
 
