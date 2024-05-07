@@ -1,6 +1,6 @@
 ---
 title: "Figures for the paper"
-subtitle: "Version 22"
+subtitle: "Version 23"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -266,7 +266,7 @@ ggplot2::ggplot(long_sh_tab, aes(x = sh_gene, y = mass, color = sh_ctrl)) +
 ```
 
 ```{r clean_sh, echo = FALSE}
-rm(sh_tab, long_sh_tab, my_ttest, plot_content, plot_list, clones_oi)
+rm(sh_tab, long_sh_tab, my_ttest, plot_list, clones_oi)
 ```
 
 # SI figure
@@ -480,8 +480,7 @@ We want to print the gene names of interest along with the chromosome, in left a
 # options(max.print = max_print)
 
 genes_oi = c("Acta2", "Btg1", "Dcn", "Lum",
-             "Cdk1", "Cdk4", "Cdkn2a",
-             "Col18a1", "Col6a1", "Col6a2", "Igf1",
+             "Cdk1", "Cdk4", "Cdkn2a", "Igf1",
              "Lama2", "Lama4", "Mdm2", "Mif", "Mmp11", "Mmp19", "Nfkb2",
              "Pten", "Ptprk", "Timp3")
 ```
@@ -683,6 +682,7 @@ ht_cnv = ComplexHeatmap::oncoPrint(cnv_matrix,
 ```{r figWES_CNV_primary, fig.width = 12, fig.height = 8}
 ComplexHeatmap::draw(ht_cnv,
                      merge_legend = TRUE,
+                     padding = unit(c(10,10,10,10), "mm"),
                      heatmap_legend_side = "left",
                      annotation_legend_side = "left")
 ```
@@ -712,6 +712,18 @@ nb_snv_data = nb_snv_data %>%
   mutate(across(everything(), as.numeric)) %>%
   t()
 nb_snv_data
+```
+
+We change the columns in `nb_snv_data` table :
+
+```{r wes_nb_snv_data_change}
+nb_snv_data = nb_snv_data %>%
+  log10() %>%
+  as.data.frame %>%
+  `colnames<-`(c("total", "transcripts", "AA")) %>%
+  dplyr::mutate(transcript_not_aa = transcripts - AA) %>%
+  dplyr::mutate(total_not_transcripts = total - transcripts) %>%
+  dplyr::select(AA, transcript_not_aa, total_not_transcripts)
 ```
 
 We split the snv table to keep only information regarding genes :
@@ -745,12 +757,19 @@ We define the oncoplot annotation :
 # Barplot annotation
 breaks = c(1, 10, 100, 1000, 10000)
 ha_top = ComplexHeatmap::HeatmapAnnotation(
-  "Nb SNV" = anno_barplot(log10(as.matrix(nb_snv_data[, 1])),
-                          # gp = gpar(fill = c("lightgray", "gray50", "black")),
-                          axis_param = list(at = log10(breaks), labels = breaks),
+  "Nb SNV" = anno_barplot(as.matrix(nb_snv_data),
+                          gp = gpar(fill = c("black", "gray50", "lightgray")),
+                          axis_param = list(at = log10(breaks),
+                                            labels = format(breaks, scientific = FALSE)),
                           border = FALSE),
   height = unit(2, "cm"),
   annotation_name_side = "left")
+
+lgd_list = list(
+  ComplexHeatmap::Legend(
+    labels = c("Total SNV", "SNV within transcripts", "SNV within transcripts, AA-changed"),
+    title = "Nb of SNV",
+    legend_gp = gpar(fill = c("lightgray", "gray50", "black"))))
 
 # Oncoprint colors
 vec_colors_snv = c("snv" = "mediumseagreen",
@@ -802,6 +821,8 @@ ht_snv = ComplexHeatmap::oncoPrint(snv_data,
 ```{r figWES_SNV_primary, fig.width = 12, fig.height = 10}
 ComplexHeatmap::draw(ht_snv,
                      merge_legend = TRUE,
+                     padding = unit(c(10,10,10,10), "mm"),
+                     annotation_legend_list = lgd_list,
                      heatmap_legend_side = "left",
                      annotation_legend_side = "left")
 ```
@@ -809,12 +830,14 @@ ComplexHeatmap::draw(ht_snv,
 
 To force same columns order but automatic ordering, and same columns size, we merge both figures :
 
-```{r figWES_primary, fig.width = 12, fig.height = 15}
+```{r figWES_primary, fig.width = 11, fig.height = 15}
 ht_list = ht_cnv %v% ht_snv
 
 ComplexHeatmap::draw(ht_list,
+                     padding = unit(c(10,10,10,10), "mm"),
                      ht_gap = unit(1.5, "cm"),
                      merge_legend = TRUE,
+                     annotation_legend_list = lgd_list,
                      heatmap_legend_side = "bottom",
                      annotation_legend_side = "bottom")
 ```
@@ -824,14 +847,159 @@ We clean the environment :
 ```{r wes_clean_1}
 rm(sample_col_ids, sample_names, new_column_names, genes_oi,
    cnv_group_fun, vec_colors_cnv, alter_fun_cnv, binarize,
-   cnv_data, cnv_matrix, fontsize, list_colors, heatmap_legend_param,
+   cnv_data, cnv_matrix, list_colors, heatmap_legend_param,
    snv_data, nb_snv_data, ha_top, vec_colors_snv, alter_fun_snv, 
    breaks, sample_annot,  ht_cnv, ht_snv, ht_list)
 ```
 
 ## SNV - transplanted
 
-TO DO in next version
+We make the figure relative to SNV in transplanted tumors.
+
+### Load data
+
+We load the SNV table :
+
+```{r twes_load_snv_trans}
+snv_data = openxlsx::read.xlsx("./data/A_Tableau_SNV_Transplanted.xlsx",
+                               sheet = 1, startRow = 4)
+snv_data = snv_data[c(8:nrow(snv_data)), c(3,8:11)]
+dim(snv_data)
+```
+
+We extract the information regarding number of SNV per sample :
+
+```{r twes_nb_snv_data}
+nb_snv_data = snv_data[c(1:3), ]
+rownames(nb_snv_data) = nb_snv_data$X3
+nb_snv_data$X3 = NULL
+nb_snv_data = nb_snv_data %>%
+  mutate(across(everything(), as.numeric)) %>%
+  t()
+nb_snv_data
+```
+
+We split the snv table to keep only information regarding genes :
+
+```{r twes_keep_genes_info}
+snv_data = snv_data[c(4:nrow(snv_data)), ]
+snv_data = snv_data[!duplicated(snv_data$X3), ]
+rownames(snv_data) = snv_data$X3
+snv_data$X3 = NULL
+snv_data[is.na(snv_data) == TRUE] = ""
+snv_data[snv_data == "*"] = "snv;*"
+snv_data = as.matrix(snv_data)
+
+head(snv_data)
+```
+
+We change columns in the `nb_snv_data` table :
+
+```{r twes_nb_snv_data_change}
+nb_snv_data = nb_snv_data %>%
+  # log10() %>%
+  as.data.frame %>%
+  `colnames<-`(c("total", "transcripts", "AA")) %>%
+  dplyr::mutate(transcript_not_aa = transcripts - AA) %>%
+  dplyr::mutate(total_not_transcripts = total - transcripts) %>%
+  dplyr::select(AA, transcript_not_aa, total_not_transcripts)
+```
+
+We add the loss of Cdkn2a, that was detected in CNV analysis :
+
+```{r add_cdkn2a}
+snv_data = rbind(rep("cnv", ncol(snv_data)),
+                 snv_data)
+rownames(snv_data)[1] = "Cdkn2a"
+
+head(snv_data)
+```
+
+
+### Annotation
+
+We define the oncoplot annotation :
+
+```{r twes_snv_annot}
+# Barplot annotation
+breaks = c(1, 10, 100, 1000, 10000, 100000)
+ha_top = ComplexHeatmap::HeatmapAnnotation(
+  "Nb SNV\n" = anno_barplot(as.matrix(nb_snv_data),
+                          gp = gpar(fill = c("black", "gray50", "lightgray")),
+                          # axis_param = list(at = log10(breaks),
+                          #                   labels = format(breaks, scientific = FALSE)),
+                          border = FALSE),
+  height = unit(2, "cm"),
+  annotation_name_side = "left")
+
+# Oncoprint colors
+vec_colors_snv = c("cnv" = "#2166AC",
+                   "snv" = "mediumseagreen",
+                   "background" = "#F7F7F7")
+
+lgd_list = list(
+  ComplexHeatmap::Legend(
+    labels = c("Total SNV", "SNV within transcripts", "SNV within transcripts, AA-changed"),
+    title = "Nb of SNV",
+    legend_gp = gpar(fill = c("lightgray", "gray50", "black"))),
+  ComplexHeatmap::Legend(
+    labels = c("loss"),
+    title = "Copy Number Variations",
+    legend_gp = gpar(fill = vec_colors_snv[["cnv"]])))
+
+alter_fun_snv = list(
+  "background" = alter_graphic("rect", fill = vec_colors_snv[["background"]],
+                               width = 0.9, height = 0.9),
+  "snv" = alter_graphic("rect", fill = vec_colors_snv[["snv"]],
+                        width = 0.9, height = 0.9),
+  "cnv" = alter_graphic("rect", fill = vec_colors_snv[["cnv"]],
+                        width = 0.9, height = 0.9),
+  "*" = function(x, y, w, h) {
+    # grid.segments(x - w*0.4, y - h*0.4, x + w*0.4, y + h*0.4, gp = gpar(lwd = 2))
+    # grid.segments(x + w*0.4, y - h*0.4, x - w*0.4, y + h*0.4, gp = gpar(lwd = 2))
+    grid.points(x, y, pch = 16)
+  })
+
+heatmap_legend_param = list(title = "Single Nucleotide Variations",
+                            at = c("snv", "*"), 
+                            labels = c("SNV", "SNV AA-altered"))
+```
+
+and draw the oncoplot :
+
+```{r twes_ht_snv}
+ht_snv = ComplexHeatmap::oncoPrint(snv_data,
+                                   # Colors
+                                   alter_fun = alter_fun_snv,
+                                   alter_fun_is_vectorized = TRUE,
+                                   # Barplot and annotation
+                                   col = vec_colors_snv,
+                                   top_annotation = ha_top,
+                                   # top_annotation = NULL,
+                                   right_annotation = NULL,
+                                   # Legend
+                                   heatmap_legend_param = heatmap_legend_param,
+                                   # Sample names
+                                   show_column_names = TRUE,
+                                   # column_order = colnames(snv_data),
+                                   column_names_gp = grid::gpar(fontsize = fontsize),
+                                   # Region names
+                                   row_names_side = "left",
+                                   row_names_gp = grid::gpar(fontsize = fontsize),
+                                   row_order = rownames(snv_data),
+                                   # % side
+                                   pct_side = "right",
+                                   pct_digits = 0)
+```
+
+```{r figWES_SNV_transplanted, fig.width = 7.5, fig.height = 9}
+ComplexHeatmap::draw(ht_snv,
+                     padding = unit(c(10,10,10,10), "mm"),
+                     merge_legend = TRUE,
+                     annotation_legend_list = lgd_list,
+                     heatmap_legend_side = "right",
+                     annotation_legend_side = "right")
+```
 
 # Mouse
 
@@ -1739,7 +1907,7 @@ genes_tom_traj = c("Sox10", "S100b", "Ngfr", "L1cam", "Chl1", "Pdgfra",
                    "dtTomato", "Birc5", "Top2a", "Mki67",
                    "Acta2", "Tagln", "Nes",
                    "Cdkn2a", "Trp53", "Eed", "Suz12", "Rbbp4", "Ezh1", "Ezh2",
-                   "Mbp", "Mpz", "Ncmap", "Cldn19")
+                   "Mbp", "Mpz", "Ncmap", "Cldn19", "Pmp22", "Scn7a")
 genes_patients = c("SOX10", "S100B", "NGFR", "L1CAM", "CHL1", "PDGFRA",
                    "PDGFRB", "SOX9", "CD34", "SPP1", "GAS1", "CRABP1",
                    "CDKN2A", "TP53", "EED", "SUZ12", "RBBP4", "EZH1", "EZH2")
@@ -1758,7 +1926,7 @@ genes_heatmap = list(group1 = c("Mpz", "Mbp", "S100b", "Rxrg", "Kcna1", "Rarres2
                                 "Hmga2", "Crabp1", "Cd34", "Cks1b",
                                 "Dut", "Tubb6", "Lyar", "Tyms", "Dctpp1", "Mcm6",
                                 "Top2a", "Birc5", "Mki67"),
-                     group3 = c("Nfkbia", "Bgn", "Spp1", "Pdlim2", "Fn1", "Cpe", "Tcf4", "Cst3",
+                     group3 = c("Nfkbia", "Bgn", "Spp1", "Cxcl12", "Pdlim2", "Fn1", "Cpe", "Tcf4", "Cst3",
                                 "Errfi1", "Grn", "Nr2f1",  "Trps1", "Nav1",
                                 "Prrx1", "Pbx1", "Wls", "Pcolce",
                                 "Loxl1", "Twist1",  "Igfbp4", "Serpinf1", "Ddr2", "Mgp",
