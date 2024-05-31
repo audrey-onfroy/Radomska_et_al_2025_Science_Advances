@@ -1,6 +1,6 @@
 ---
 title: "Figures for the paper"
-subtitle: "Version 23"
+subtitle: "Version 24"
 author: "Audrey"
 date: "`r format(Sys.time(), '%Y-%m-%d')`"
 output:
@@ -266,7 +266,7 @@ ggplot2::ggplot(long_sh_tab, aes(x = sh_gene, y = mass, color = sh_ctrl)) +
 ```
 
 ```{r clean_sh, echo = FALSE}
-rm(sh_tab, long_sh_tab, my_ttest, plot_list, clones_oi)
+rm(sh_tab, long_sh_tab, my_ttest, clones_oi)
 ```
 
 # SI figure
@@ -291,7 +291,7 @@ ggplot2::ggplot(si_tab, aes(x = Treatment, y = X..of.siCTL.Nuc)) +
   ggplot2::geom_jitter(width = 0.25, size = 2) +
   # Theme
   ggplot2::scale_y_continuous(breaks = seq(0, 1.1*max(si_tab$X..of.siCTL.Nuc), by = 25),
-                              labels = format(seq(0, 1.1*max(si_tab$X..of.siCTL.Nuc), by = 25), nsmall = 2),
+                              labels = format(seq(0, 1.1*max(si_tab$X..of.siCTL.Nuc), by = 25)),
                               limits = c(0, 125),
                               expand = c(0,0)) +
   ggplot2::labs(y = "% of si-ctrl intensity",
@@ -602,19 +602,19 @@ sample_annot = openxlsx::read.xlsx("./data/Table_Genetic.xlsx", sheet = 3)
 
 # Add id corresponding to scRNA-Seq
 sample_annot$sc_ID = dplyr::case_when(
-  sample_annot$ID == "#46643_T1" ~ "flmn_MPNST_1", # 2022_25 -- check
-  sample_annot$ID == "#46643_T2" ~ "flmn_MPNST_2", # 2022_26 -- check
-  sample_annot$ID == "#46643_T3" ~ "flmn_MPNST_0", # 2022_27 -- check
-  sample_annot$ID == "#83935" ~ "flmn_MPNST_E",
-  sample_annot$ID == "#27187" ~ "flmn_MPNST_F",
-  sample_annot$ID == "#83937" ~ "flmn_MPNST_G",
-  sample_annot$ID == "#CF153" ~ "flfl_MPNST_3", # 2019_G
-  sample_annot$ID == "#62908" ~ "flfl_MPNST_2", # 2020_19
-  sample_annot$ID == "#76339" ~ "flfl_MPNST_4", # 2021_33
-  sample_annot$ID == "#63717" ~ "flfl_MPNST_A",
-  sample_annot$ID == "#23249" ~ "flfl_MPNST_B",
-  sample_annot$ID == "#23465" ~ "flfl_MPNST_C",
-  sample_annot$ID == "#62982"  ~ "flfl_MPNST_D",
+  sample_annot$ID == "#46643_T1" ~ "A",
+  sample_annot$ID == "#46643_T2" ~ "D",
+  sample_annot$ID == "#46643_T3" ~ "C",
+  sample_annot$ID == "#83935"    ~ "L",
+  sample_annot$ID == "#27187"    ~ "M",
+  sample_annot$ID == "#83937"    ~ "I",
+  sample_annot$ID == "#CF153"    ~ "G",
+  sample_annot$ID == "#62908"    ~ "K",
+  sample_annot$ID == "#76339"    ~ "E",
+  sample_annot$ID == "#63717"    ~ "B",
+  sample_annot$ID == "#23249"    ~ "J",
+  sample_annot$ID == "#23465"    ~ "H",
+  sample_annot$ID == "#62982"    ~ "F",
   TRUE ~ "PROBLEM")
 
 # Reshape
@@ -670,6 +670,7 @@ ht_cnv = ComplexHeatmap::oncoPrint(cnv_matrix,
                                    show_column_names = TRUE,
                                    # column_order = colnames(cnv_matrix),
                                    column_names_gp = grid::gpar(fontsize = fontsize),
+                                   column_names_rot = 0,
                                    # Region names
                                    row_names_side = "left",
                                    row_names_gp = grid::gpar(fontsize = fontsize),
@@ -809,6 +810,7 @@ ht_snv = ComplexHeatmap::oncoPrint(snv_data,
                                    show_column_names = TRUE,
                                    # column_order = colnames(snv_data),
                                    column_names_gp = grid::gpar(fontsize = fontsize),
+                                   column_names_rot = 0,
                                    # Region names
                                    row_names_side = "left",
                                    row_names_gp = grid::gpar(fontsize = fontsize),
@@ -863,7 +865,7 @@ We load the SNV table :
 ```{r twes_load_snv_trans}
 snv_data = openxlsx::read.xlsx("./data/A_Tableau_SNV_Transplanted.xlsx",
                                sheet = 1, startRow = 4)
-snv_data = snv_data[c(8:nrow(snv_data)), c(3,8:11)]
+snv_data = snv_data[c(8:nrow(snv_data)), c(3, 4, 8, 5, 9, 6, 10, 7, 11)]
 dim(snv_data)
 ```
 
@@ -910,6 +912,7 @@ We add the loss of Cdkn2a, that was detected in CNV analysis :
 ```{r add_cdkn2a}
 snv_data = rbind(rep("cnv", ncol(snv_data)),
                  snv_data)
+snv_data[1, c("L", "M")] = ""
 rownames(snv_data)[1] = "Cdkn2a"
 
 head(snv_data)
@@ -925,10 +928,10 @@ We define the oncoplot annotation :
 breaks = c(1, 10, 100, 1000, 10000, 100000)
 ha_top = ComplexHeatmap::HeatmapAnnotation(
   "Nb SNV\n" = anno_barplot(as.matrix(nb_snv_data),
-                          gp = gpar(fill = c("black", "gray50", "lightgray")),
-                          # axis_param = list(at = log10(breaks),
-                          #                   labels = format(breaks, scientific = FALSE)),
-                          border = FALSE),
+                            gp = gpar(fill = c("black", "gray50", "lightgray")),
+                            # axis_param = list(at = log10(breaks),
+                            #                   labels = format(breaks, scientific = FALSE)),
+                            border = FALSE),
   height = unit(2, "cm"),
   annotation_name_side = "left")
 
@@ -981,8 +984,13 @@ ht_snv = ComplexHeatmap::oncoPrint(snv_data,
                                    heatmap_legend_param = heatmap_legend_param,
                                    # Sample names
                                    show_column_names = TRUE,
-                                   # column_order = colnames(snv_data),
+                                   column_order = colnames(snv_data),
                                    column_names_gp = grid::gpar(fontsize = fontsize),
+                                   column_names_rot = 0,
+                                   # Split columns
+                                   column_split = c(1,1,2,2,3,3,4,4),
+                                   column_title = NULL,
+                                   column_gap = unit(7, "mm"),
                                    # Region names
                                    row_names_side = "left",
                                    row_names_gp = grid::gpar(fontsize = fontsize),
@@ -992,7 +1000,7 @@ ht_snv = ComplexHeatmap::oncoPrint(snv_data,
                                    pct_digits = 0)
 ```
 
-```{r figWES_SNV_transplanted, fig.width = 7.5, fig.height = 9}
+```{r figWES_SNV_transplanted, fig.width = 10, fig.height = 9}
 ComplexHeatmap::draw(ht_snv,
                      padding = unit(c(10,10,10,10), "mm"),
                      merge_legend = TRUE,
@@ -1306,77 +1314,8 @@ aquarius::fig_plot_dotplot(sobj,
                       color = "gray92") +
   ggplot2::theme(legend.direction = "vertical",
                  legend.box = "horizontal",
-                 legend.position = "bottom")
-```
-
-How many cells for each cell type, by tumor type ?
-
-```{r fig_supp_mpnst_table, fig.height = 5, fig.width = 8, class.source = "fold-hide"}
-df_quantities = table(sobj$cell_type,
-                      sobj$genotype) %>%
-  prop.table(., margin = 2) %>%
-  "*"(100) %>% round(., 2) %>%
-  as.data.frame.array(stringAsFactors = FALSE) %>%
-  dplyr::mutate(cell_type = rownames(.)) %>%
-  dplyr::relocate(cell_type)
-df_quantities$nb_cells = rowSums(table(sobj$cell_type, sobj$genotype))
-df_quantities = rbind(df_quantities,
-                      c("Number of cells", as.numeric(table(sobj$genotype)), ncol(sobj)))
-
-columns_color = unlist(color_markers[levels(sobj$cell_type)])
-columns_color = c(columns_color, NA, rep(NA, times = nrow(df_quantities)*(ncol(df_quantities) - 1)))
-font_color = ifelse(is.na(columns_color), yes = "black", no = "white")
-
-# Cell type
-custom_theme1 = gridExtra::ttheme_minimal(base_colour = font_color,
-                                          core = list(bg_params = list(fill = columns_color,
-                                                                       col = "black")),
-                                          colhead = list(fg_params = list(col = "black")))
-gb1 = gridExtra::tableGrob(df_quantities,
-                           rows = NULL,
-                           cols = c("Cell type", "fl/fl", "fl/-", "Nb cells"),
-                           theme = custom_theme1)
-
-# Cell family (merged cells)
-custom_theme2 = gridExtra::ttheme_minimal(base_colour = c("black", "white", "white"),
-                                          core = list(bg_params = list(fill = family_color,
-                                                                       col = "black")),
-                                          colhead = list(fg_params = list(col = "black")))
-gb2 = data.frame(cell_family = c("immune cells", "stromal cells", "tumor cells")) %>%
-  gridExtra::tableGrob(.,
-                       row = NULL,
-                       cols = c("Cell family"),
-                       theme = custom_theme2)
-
-# Merge
-gb = gridExtra::gtable_combine(gb2,gb1, along = 1)
-gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 9, 13, 2, 9, 13)
-gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(8, 12, 13, 8, 12, 13)
-
-# Patchwork
-title_gg = ggplot2::ggplot() +
-  ggplot2::theme_minimal()
-
-patchwork::wrap_plots(list(title_gg, gb)) +
-  patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
-```
-
-We save an Excel file with the proportion of cells by cell type and by sample :
-
-```{r excel_df_quantities_mpnst}
-df_quantities = table(sobj$cell_type,
-                      sobj$sample_identifier) %>%
-  prop.table(., margin = 2) %>%
-  "*"(100) %>% round(., 2) %>%
-  as.data.frame.array(stringAsFactors = FALSE) %>%
-  dplyr::mutate(cell_type = rownames(.)) %>%
-  dplyr::relocate(cell_type)
-df_quantities$nb_cells = rowSums(table(sobj$cell_type, sobj$sample_identifier))
-df_quantities = rbind(df_quantities,
-                      c("Number of cells", as.numeric(table(sobj$sample_identifier)), ncol(sobj)))
-
-openxlsx::write.xlsx(df_quantities, file = "./data/mpnst_cell_quantities.xlsx")
+                 legend.position = "bottom",
+                 axis.text = element_text(size = 13))
 ```
 
 
@@ -1510,13 +1449,6 @@ aquarius::fig_plot_feature(sobj_full, reduction_tsne, gene = "Mki67",
                            gene_expression_colors = aquarius::color_gene, order = TRUE)
 ```
 
-This figure represents Ptprc expression :
-
-```{r fig_supp_flfl_ptprc, class.source = 'fold-hide', fig.width = 6, fig.height = 5}
-aquarius::fig_plot_feature(sobj_full, reduction_tsne, gene = "Ptprc",
-                           gene_expression_colors = aquarius::color_gene, order = TRUE)
-```
-
 We represent also Tomato expression split by genotype and tumor type. Cells annotated as fibroblasts in "MPNST" zone, in pNF samples, are Tom-, thus true fibroblasts.
 
 ```{r fig_supp_flfl_tomato_split, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
@@ -1526,15 +1458,6 @@ plot_list = aquarius::plot_split_dimred(sobj_full,
                                         color_by = "dtTomato")
 
 plot_list
-```
-
-
-This figure shows that batch-effect is removed on this projection. It also show cell cycle phase, and a quality metric : the percentage of UMI by cell, for mitochondrial genes 
-
-```{r fig_supp_flfl_qc, class.source = 'fold-hide', fig.width = 7, fig.height = 5}
-aquarius::fig_plot_quality(sobj_full, reduction_tsne,
-                           gene_expression_colors = aquarius::color_gene,
-                           sample_info = sample_info)
 ```
 
 To quantify cell types in each dataset, we remove the two datasets corresponding to samples that have been sorted for Tomato expression (flfl_dyNF_4, flfl_dyNF_6).
@@ -1612,59 +1535,16 @@ patchwork::wrap_plots(plot_list, widths = plot_content, nrow = 1) +
 
 This barplot represents the proportion of cell populations, by tumor type for all mice, except the two samples filtered for Tomato expression by FACS :
 
-```{r fig4_C, class.source = 'fold-hide', fig.width = 4.5, fig.height = 4}
-df_proportion = table(subsobj$tumor_type,
-                      subsobj$cell_family) %>%
-  prop.table(., margin = 1) %>%
-  as.data.frame.table() %>%
-  `colnames<-`(c("sample_type", "cell_family", "prop_cells"))
+```{r fig4_C, fig.width = 2.7, fig.height = 4}
+subsobj$cell_family = factor(subsobj$cell_family,
+                             levels = names(family_color))
 
-plot_content = sample_info %>%
-  dplyr::filter(project_name %in% as.character(unique(subsobj$project_name))) %>%
-  dplyr::pull(tumor_type) %>% table()
-plot_content = setNames(nm = names(plot_content), as.vector(plot_content))
-
-plot_list = lapply(names(plot_content), FUN = function(st) {
-  p = df_proportion %>%
-    dplyr::filter(.data$sample_type == .env$st) %>%
-    aquarius::plot_barplot(.,
-                           x = "sample_type",
-                           y = "prop_cells",
-                           fill = "cell_family",
-                           position = ggplot2::position_fill()) +
-    ggplot2::scale_fill_manual(values = family_color,
-                               breaks = names(family_color),
-                               name = "Cell family") +
-    ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
-                                labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
-                                expand = c(0,0)) +
-    ggplot2::theme(axis.title.y = ggplot2::element_blank(),
-                   axis.line.x = ggplot2::element_line(colour = "lightgray"),
-                   plot.title = ggtext::element_textbox(hjust = 0.5,
-                                                        margin = margin(t = 5, b = 5)))
-  
-  return(p)
-})
-
-# Reorder
-names(plot_list) = names(plot_content)
-plot_list = plot_list[c("pNF", "dyNF", "MPNST")]
-plot_content = plot_content[names(plot_list)]
-
-# Remove legend except for the first one
-plot_list[c(2:length(plot_list))] = lapply(plot_list[c(2:length(plot_list))], FUN = function(p) {
-  p = p +
-    ggplot2::theme(axis.line.y = element_blank(),
-                   axis.text.y = element_blank(),
-                   axis.ticks.y = element_blank())
-  return(p)
-})
-
-# Patchwork
-patchwork::wrap_plots(plot_list, nrow = 1) +
-  patchwork::plot_layout(guides = "collect")
+aquarius::fig_plot_bp_tt(subsobj, groupby = "cell_family", colors = family_color,
+                         with_cell_family = FALSE, quantif = FALSE) &
+  ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
+                              labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
+                              expand = c(0,0))
 ```
-
 
 This dotplot assesses the cell type annotation :
 
@@ -1683,89 +1563,13 @@ aquarius::fig_plot_dotplot(sobj_full,
                       color = "gray92") +
   ggplot2::theme(legend.direction = "vertical",
                  legend.box = "horizontal",
-                 legend.position = "bottom")
+                 legend.position = "bottom",
+                 axis.text = element_text(size = 13))
 ```
 
 ```{r clean_mouse, echo = FALSE}
 rm(dotplot_markers, bool, markers, sample_tomato, df_proportion)
 ```
-
-
-How many cells for each cell type, by tumor type ?
-
-```{r fig_supp_flfl_table, fig.height = 5, fig.width = 8, class.source = "fold-hide"}
-df_quantities = table(subsobj$cell_type,
-                      subsobj$tumor_type) %>%
-  prop.table(., margin = 2) %>%
-  "*"(100) %>% round(., 2) %>%
-  as.data.frame.array(stringAsFactors = FALSE) %>%
-  dplyr::mutate(cell_type = rownames(.)) %>%
-  dplyr::relocate(cell_type)
-df_quantities$nb_cells = rowSums(table(subsobj$cell_type, subsobj$tumor_type))
-df_quantities = rbind(df_quantities,
-                      c("Number of cells", as.numeric(table(subsobj$tumor_type)), ncol(subsobj)))
-
-columns_color = unlist(color_markers[levels(subsobj$cell_type)])
-columns_color = c(columns_color, NA, rep(NA, times = nrow(df_quantities)*(ncol(df_quantities) - 1)))
-font_color = ifelse(is.na(columns_color), yes = "black", no = "white")
-
-# Cell type
-custom_theme1 = gridExtra::ttheme_minimal(base_colour = font_color,
-                                          core = list(bg_params = list(fill = columns_color,
-                                                                       col = "black")),
-                                          colhead = list(fg_params = list(col = "black")))
-gb1 = gridExtra::tableGrob(df_quantities,
-                           rows = NULL,
-                           cols = c("Cell type", "pNF", "dyNF", "MPNST", "Nb cells"),
-                           theme = custom_theme1)
-
-# Cell family (merged cells)
-custom_theme2 = gridExtra::ttheme_minimal(base_colour = c("black", "white", "white"),
-                                          core = list(bg_params = list(fill = family_color,
-                                                                       col = "black")),
-                                          colhead = list(fg_params = list(col = "black")))
-gb2 = data.frame(cell_family = c("immune cells", "stromal cells", "tumor cells")) %>%
-  gridExtra::tableGrob(.,
-                       row = NULL,
-                       cols = c("Cell family"),
-                       theme = custom_theme2)
-
-# Merge
-gb = gridExtra::gtable_combine(gb2,gb1, along = 1)
-gb$layout[gb$layout$t != 1 & gb$layout$l == 1, c("t")] = c(2, 9, 13, 2, 9, 13)
-gb$layout[gb$layout$b != 1  & gb$layout$l == 1, c("b")] = c(8, 12, 13, 8, 12, 13)
-
-# Patchwork
-title_gg = ggplot2::ggplot() +
-  ggplot2::theme_minimal()
-
-patchwork::wrap_plots(list(title_gg, gb)) +
-  patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
-  ggplot2::theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 15))
-```
-
-We save an Excel file with the proportion of cells by cell type and by sample :
-
-```{r excel_df_quantities_flfl}
-df_quantities = table(sobj_full$cell_type,
-                      sobj_full$sample_identifier) %>%
-  prop.table(., margin = 2) %>%
-  "*"(100) %>% round(., 2) %>%
-  as.data.frame.array(stringAsFactors = FALSE) %>%
-  dplyr::mutate(cell_type = rownames(.)) %>%
-  dplyr::relocate(cell_type)
-df_quantities$nb_cells = rowSums(table(sobj_full$cell_type, sobj_full$sample_identifier))
-df_quantities = rbind(df_quantities,
-                      c("Number of cells", as.numeric(table(sobj_full$sample_identifier)), ncol(sobj_full)))
-
-openxlsx::write.xlsx(df_quantities, file = "./data/flfl_cell_quantities.xlsx")
-```
-
-```{r clean_prop, echo = FALSE}
-rm(df_quantities, custom_theme1, custom_theme2, gb, gb1, gb2,
-   title_gg, font_color, columns_color, family_color)
-```
-
 
 ## Zoom in fibroblasts
 
@@ -1821,7 +1625,10 @@ p1 = aquarius::fig_plot_dimplot(sobj, myred = name2D, groupby = "FB_type",
   ggplot2::theme(legend.position = "right") +
   Seurat::NoAxes()
 p2 = aquarius::fig_plot_bp_tt(sobj, groupby = "FB_type", colors = color_fibro,
-                              with_cell_family = FALSE, quantif = TRUE)
+                              with_cell_family = FALSE, quantif = TRUE) &
+  ggplot2::scale_y_continuous(breaks = seq(0, 1, by = 0.1),
+                              labels = c("0 %", rep("", 4), "50 %", rep("", 4), "100 %"),
+                              expand = c(0,0))
 
 patchwork::wrap_plots(p1, p2) +
   patchwork::plot_layout(width = c(4, 1.5))
@@ -2134,8 +1941,7 @@ list_colors[["pseudotime"]] = circlize::colorRamp2(breaks = seq(min(sobj$pseudot
                                                                 max(sobj$pseudotime),
                                                                 length.out = 9),
                                                    colors = viridis::viridis(9))
-list_colors[["sample_type"]] = c(flfl_pNF = "blue",
-                                 flfl_dyNF = "green", flfl_MPNST = "brown")
+list_colors[["sample_type"]] = c(pNF = "blue", dyNF = "green", MPNST = "brown")
 list_colors[["cell_cycle_phase"]] = aquarius::gg_color_hue(3)
 names(list_colors[["cell_cycle_phase"]]) = c("G0 / G1", "G2M", "S")
 list_colors[["percent_mito"]] = circlize::colorRamp2(breaks = seq(from = min(sobj$percent.mt),
@@ -2155,7 +1961,7 @@ name_side = "right"
 ha_top = HeatmapAnnotation(
   group = anno_block(gp = gpar(fill = group_colors),
                      labels = sort(unique(sobj$kmeans_group))),
-  sample_type = sobj$sample_type,
+  sample_type = stringr::str_remove_all(sobj$sample_type, pattern = "flfl_"),
   pseudotime = sobj$pseudotime,
   annotation_legend_param = list(pseudotime = list(at = range(sobj$pseudotime),
                                                    labels = c("min", "max"))),
@@ -2781,7 +2587,8 @@ aquarius::fig_plot_dotplot(sobj_full,
                       color = "gray92") +
   ggplot2::theme(legend.direction = "vertical",
                  legend.box = "horizontal",
-                 legend.position = "bottom")
+                 legend.position = "bottom",
+                 axis.text = element_text(size = 13))
 ```
 
 ```{r clean_markers, echo = FALSE}
@@ -2970,6 +2777,77 @@ rm(ha_bottom, ha_top, ht, list_colors, mat_expression,
    plot_list, sobj_full, features, name_side, name2D, patient_dir)
 ```
 
+
+# Supplementary tables
+
+In this section, we save files to associate with the manuscript, as supplementary tables.
+
+## Table S4 (package version)
+
+We load the table :
+
+```{r ts4_load}
+package_version = read.table(paste0(analysis_dir, "/data/info_to_install_2023_04_17.txt"),
+                             header = TRUE)
+head(package_version)
+```
+
+Columns correspond to :
+
+* **order** : order to install package such that one never need to install dependencies
+* **package_name** : package name
+* **version** : installed version, on the local machine
+* **url** : the package was installed in the Singularity container using this url
+
+We save this table, except the last column (just for me) :
+
+```{r ts4_save}
+openxlsx::write.xlsx(package_version[, c(1:4)],
+                     file = paste0(analysis_dir, "/data/Supplementary Table 4.xlsx"))
+```
+
+## Table S5 (annotation all)
+
+We load the table :
+
+```{r ts5_load}
+cell_markers = readRDS(paste0(analysis_dir, "/../1_mice/1_metadata/mice_cell_markers.rds"))
+lengths(cell_markers)
+```
+
+We save this table, except the last column (just for me) :
+
+```{r ts5_save}
+openxlsx::write.xlsx(cell_markers,
+                     file = paste0(analysis_dir, "/data/Supplementary Table 5.xlsx"))
+```
+
+## Table S6 (annotation fibroblasts)
+
+We copy paste markers from the associated HTML file :
+
+```{r ts6_load}
+cell_markers = list(periFb = c("Sfrp5", "Itgb4", "Wnt6", "Lypd2", "Krt19", "Cav2", "Slc6a13",
+                               "Stxbp6", "Sdpr", "Foxd1", "Tenm2", "Mustn1", "Moxd1", "Plcd3", "Frmd4b"),
+                    epiFb = c("Clec3b", "Gdf10", "Dpt", "Pcolce2", "Ly6c1", "Comp", "Bmp4",
+                              "Gpnmb", "Clec11a", "Cfh", "Ogn", "Fbln7", "Fmod", "Crispld2",
+                              "Cxcl13", "Dpp4", "Cd55", "Adamts5", "Cd248"),
+                    endoFb = c("Enpp2", "Fam213a", "Myoc", "Cyp26b1", "Aspa", "P2ry14", "Nipal1",
+                               "Nt5e", "Mylk", "Cdh19", "Atp1a2", "Jam2", "Acot1", "Kif21a",
+                               "Foxd1", "1500009L16Rik", "Hlf", "Sox8", "Ptx3"),
+                    CAF = c("Fndc1", "Cilp", "C1qtnf6", "Mfap4", "Loxl1",
+                            "Col14a1", "Postn", "Emilin1", "Lgmn", "Lsp1",
+                            "Spon1", "Thbs2", "Fbn2", "Itgb5", "Col16a1",
+                            "Lox", "Thy1", "Pi16", "Nrep", "Mest"))
+lengths(cell_markers)
+```
+
+We save this table, except the last column (just for me) :
+
+```{r ts6_save}
+openxlsx::write.xlsx(cell_markers,
+                     file = paste0(analysis_dir, "/data/Supplementary Table 6.xlsx"))
+```
 
 # R Session
 
