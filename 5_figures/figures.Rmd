@@ -208,7 +208,7 @@ clones_oi = c("Cxcl12_DAY_25",
               "CRABP1  clone 3_DAY_14",
               "MIF clone 1_DAY_14",
               "Pdgfr-alpha clone 1_DAY_14",
-              "Pdgfr-béta clone 7_DAY_14",
+              "Pdgfr-beta clone 7_DAY_14",
               "Sox9 Clone 13_DAY_14")
 
 # Subset clone of interest
