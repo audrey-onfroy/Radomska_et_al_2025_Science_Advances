@@ -1,0 +1,3 @@
+[submodule "2_patients"]
+	path = 2_patients
+	url = https://github.com/audrey-onfroy/Brunet_et_al.git
