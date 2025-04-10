@@ -1,9 +1,10 @@
+# Larges file format
 **gz
 **rds
 **h5
+
+# R-related
 .Rhistory
 
-**run_cnv*
-*_figures/old_figures*
-*_figures/figures_detail*
-*_screening/data*
+# Folder with the PNG and PDF figures
+**figures_detail**
