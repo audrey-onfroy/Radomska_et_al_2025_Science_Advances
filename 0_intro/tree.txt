@@ -1,0 +1,84 @@
+# tree -n -P "*Rmd" ./.. > tree.txt
+
+./..
+├── 0_intro
+│   └── 1_welcome.Rmd
+├── 1_mice
+│   ├── 0_input
+│   ├── 1_metadata
+│   │   └── 1_build_metadata.Rmd
+│   ├── 2_individual
+│   │   ├── 2_make_individual.Rmd
+│   │   └── datasets
+│   ├── 3_combined_mpnst
+│   │   └── 1_combined_mpnst.Rmd
+│   ├── 4_combined_flfl
+│   │   └── 1_combined_flfl.Rmd
+│   ├── 5_tumor_cells
+│   │   ├── 1_tumor_cells_dataset.Rmd
+│   │   ├── 2_trajectory_tinga.Rmd
+│   │   ├── 3_trajectory_slingshot.Rmd
+│   │   ├── 4_functional_enrichment.Rmd
+│   │   └── 5_gsea_heatmap.Rmd
+│   └── 6_fibroblasts
+│       ├── 1_fibroblasts_dataset.Rmd
+│       └── 2_fibroblasts_analysis.Rmd
+├── 2_patients
+│   ├── 0_input
+│   │   ├── 2019_L
+│   │   ├── 2020_11
+│   │   ├── 2020_12
+│   │   ├── 2020_21
+│   │   ├── GSM5050721
+│   │   ├── GSM5404032
+│   │   ├── GSM5404033
+│   │   ├── GSM5404034
+│   │   ├── GSM5404035
+│   │   ├── GSM5404036
+│   │   ├── GSM5404037
+│   │   ├── GSM5404038
+│   │   ├── GSM5404039
+│   │   ├── GSM5404040
+│   │   ├── GSM5404041
+│   │   ├── GSM5404042
+│   │   ├── GSM5404043
+│   │   └── GSM5404044
+│   ├── 1_metadata
+│   │   └── 1_build_metadata.Rmd
+│   ├── 2_individual
+│   │   └── 1_make_individual.Rmd
+│   ├── 3_combined
+│   │   └── 3_combined_patients.Rmd
+│   ├── 4_tumor_cells
+│   │   ├── 41_tumor_cells_dataset.Rmd
+│   │   ├── 42_trajectory_tinga.Rmd
+│   │   └── 43_trajectory_slingshot.Rmd
+│   ├── 5_figures
+│   │   ├── data
+│   │   └── figures.Rmd
+│   └── index_layout
+│       ├── logo
+│       └── pages
+├── 3_graft
+│   ├── 0_input
+│   │   └── 2020_23
+│   ├── 1_metadata
+│   │   └── 1_build_metadata.Rmd
+│   ├── 2_individual
+│   │   ├── 1_make_individual.Rmd
+│   │   └── datasets
+│   ├── 3_combined
+│   │   └── 3_combined_graft.Rmd
+│   └── 4_tumor_cells
+│       ├── 41_tumor_cells_dataset.Rmd
+│       ├── 42_trajectory_tinga.Rmd
+│       └── 43_trajectory_slingshot.Rmd
+├── 4_figures
+│   ├── data
+│   ├── figures_detail
+│   └── figures.Rmd
+└── index_layout
+    ├── logo
+    └── pages
+
+54 directories, 26 files

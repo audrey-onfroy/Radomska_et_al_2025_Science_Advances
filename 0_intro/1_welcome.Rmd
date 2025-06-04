@@ -21,104 +21,88 @@ knitr::opts_chunk$set(echo = TRUE,
 ```
 
 
+This site gathers and describes all scripts used for the analysis of single-cell RNA sequencing (scRNA-Seq), from raw count matrices to figure presented in the publication.
+
+<br>
+<center>Radomska *et al.*, Glial-to-mesenchymal transition of tumor Schwann cells drives the genetic burden in MPNSTs from Neurofibromatosis type 1 mouse model, <br>
+Science Advances; doi: *not yet available*</center>
+<br>
+
+All computational analyses were conducted using R language within RStudio. R Markdown (RMD) files were compiled to generate static HTML files, which are shared through this site. Once a file is open, a link in the top left corner enables to open it in a new tab. In the top right corner, the button "Code" allows to download the RMD file behind the HTML.
+
 # Data availability
 
-Datasets (fastq files and count matrices) are available from **GS...** accession number [here](link). For NF1 patients analyses, we get already generated count matrices from [GSE165826](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE165826) (one dataset : sample GSM5050721) and [GSE179033](https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE179033). For accession GSE179033, we get all samples excepted GSM5404031, which is a nodular neurofibroma.
+| Content               |      Availability      |
+|:---------------------:|:----------------------:|
+| scRNA-Seq data        |  ArrayExpress, accession number [E-MTAB-14222](https://www.ebi.ac.uk/biostudies/arrayexpress/studies/E-MTAB-14222) |
+| R Markdown files      |  GitHub repository hosting this website |
+| Singularity container |  Zenodo, record ID [15512051](https://doi.org/10.5281/zenodo.15512051) |
 
-# Code availability
+# Data presentation
 
-[Copy paste here the README]
+Several datasets were analyzed in the article, whose main characteristics are described in the tables below.
 
-# Singularity container
+```{r sample_info1, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 7}
+library(dplyr)
 
-In order to use the same R packages environment for all analysis, we generate a Singularity container containing all specific version of R packages used. The container is available at [link](link).
+data_dir = "./.."
+sample_info = readRDS(paste0(data_dir, "/1_mice/1_metadata/mice_sample_info.rds"))
 
-To build the container, we made a dependency tree for all packages of interest :
+# patchwork
+aquarius::fig_plot_gb(sample_info, title = "Primary mouse datasets") %>%
+  patchwork::wrap_plots() +
+  patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 15))
+```
 
-```{r package_of_interest}
-package_of_interest = c("base", "aquarius",
-                        "Seurat", "ggplot2", "patchwork", "infercnv",
-                        "dplyr", "slingshot", "TInGa", "ComplexHeatmap",
-                        "nichenetr", "org.Mm.eg.db", "infercnv", "rtracklayer",
-                        "stringr", "RColorBrewer", "viridis", "circlize",
-                        "ggvenn", "gridExtra", "gtable", "grid", "harmony",
-                        "dynplot", "dynmethods", "AnnotationDbi", "msigdbr",
-                        "clusterProfiler", "enrichplot",
-                        "EnhancedVolcano", "AUCell", "Matrix", "hdf5r",
-                        "knitr", "kableExtra", "corrplot", "dynutils", "ggtext")
+```{r sample_info2, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 2}
+sample_info = readRDS(paste0(data_dir, "/3_graft/1_metadata/graft_sample_info.rds"))
+
+# patchwork
+aquarius::fig_plot_gb(sample_info, title = "Donor / Recipient mouse datasets") %>%
+  patchwork::wrap_plots() +
+  patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 15))
+```
+
+```{r sample_info3, echo = FALSE, eval = TRUE, message = FALSE, warning = FALSE, fig.width = 10, fig.height = 7}
+sample_info = readRDS(paste0(data_dir, "/2_patients/1_metadata/patients_sample_info.rds"))
+
+# patchwork
+aquarius::fig_plot_gb(sample_info, title = "Primary NF1 patients datasets") %>%
+  patchwork::wrap_plots() +
+  patchwork::plot_layout(design = "A\nB", heights = c(0.1,5)) &
+  ggplot2::theme(plot.title = ggplot2::element_text(hjust = 0.5, face = "bold", size = 15))
 ```
 
 
-Then, we generated a table defining an installation order for all those packages, such that, when installing a package, all its dependencies are already installed. This allowed to avoid installation conflicts, when newly installed dependencies are always latest compatible version. These two steps are achieved by the `aquarius::repro_installation_order` function. The function generated a table with link to download package `tar.gz` file. Since links are unstable, because packages are archived every day, we downloaded and stored all `tar.gz` files. Finally, the container was built using the definition file [there](link).
+# Analysis framework
 
-# Traceability
+Analyses were conducted in specific directories, organised in a tree as shown below:
 
-Notebooks have been compiled using the commands below.
+```{bash, eval = TRUE}
+cat tree.txt
+```
 
-## Mice
+Note that the menu on the left follows almost the same structure.
+
+# RMD knitting
+
+R Markdown (RMD) notebooks were developed within R Studio. To ensure the reproducibility of all the analyses from the raw count matrices to the final figures and results, the RMD files were compiled using a Singularity container, to generate the HTML pages presented here. Excepting the notebooks focusing on individual dataset, all notebooks are parameter-free, so that they can be compiled using the same command. The following template was used:
 
 ```{bash}
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '1_build_metadata.Rmd', output_file = '1_build_metadata.html')"
-
-for sample in $(ls ../0_input/)
-do
-echo $sample
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = './2_make_individual.Rmd', output_file = './individual_${sample}.html', params = list(sample_name = '${sample}'))"
-done
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '3_combined_mice.Rmd', output_file = '3_combined_mice.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '41_tumor_cells_dataset.Rmd', output_file = '41_tumor_cells_dataset.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '42_tumor_cells_subdataset.Rmd', output_file = '42_tumor_cells_subdataset.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '44_trajectory_tinga.Rmd', output_file = '44_trajectory_tinga.html')"
-
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '45_trajectory_slingshot.Rmd', output_file = '45_trajectory_slingshot.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '43_flfl_vs_flmn.Rmd', output_file = '43_flfl_vs_flmn.html')"
-
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '46_functional_enrichment.Rmd', output_file = '46_functional_enrichment.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '47_gsea_heatmap.Rmd', output_file = '47_gsea_heatmap.html')"
+file="FILE_NAME"
+singularity exec \
+--bind /home \
+/path/to/singularity/image/singularity.simg \
+Rscript -e "rmarkdown::render(input = '${file}.Rmd', output_file = '${file}.html')"
 ```
 
-## Patients
+Since R libraries are not located at the same location within the Singularity container or on the local machine, we add the `.libPaths()` R command at the beginning of each notebook. In the compiled HTML file, we thus can easily check if the notebook was compiled through the container or not.
 
-```{bash}
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '1_build_metadata.Rmd', output_file = '1_build_metadata.html')"
+# Index page
 
-for sample in $(ls ../0_input/)
-do
-echo $sample
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = './1_make_individual.Rmd', output_file = './individual_${sample}.html', params = list(sample_name = '${sample}'))"
-done
+The static website was built using OrganizeHTML (DOI: [10.5281/zenodo.14505634](https://doi.org/10.5281/zenodo.14505634))
 
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '3_combined_patients.Rmd', output_file = '3_combined_patients.html')"
 
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '41_tumor_cells_dataset.Rmd', output_file = '41_tumor_cells_dataset.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '42_trajectory_tinga.Rmd', output_file = '42_trajectory_tinga.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '43_trajectory_slingshot.Rmd', output_file = '43_trajectory_slingshot.html')"
-```
-
-## Graft
-
-```{bash}
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir_copie.simg Rscript -e "rmarkdown::render(input = '1_build_metadata.Rmd', output_file = '1_build_metadata.html')"
-
-sample="2020_23";singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir_copie.simg Rscript -e "rmarkdown::render(input = './1_make_individual.Rmd', output_file = './individual_${sample}.html', params = list(sample_name = '${sample}'))"
-
-ln -s /home/aurelien/Documents/Audrey/git_radomska/1_mice/2_individual/datasets/2020_18_sobj_filtered.rds /home/aurelien/Documents/Audrey/git_radomska/3_graft/2_individual/datasets/2020_18_sobj_filtered.rds
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir.simg Rscript -e "rmarkdown::render(input = '3_combined_graft.Rmd', output_file = '3_combined_graft.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir_copie.simg Rscript -e "rmarkdown::render(input = '41_tumor_cells_dataset.Rmd', output_file = '41_tumor_cells_dataset.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir_copie.simg Rscript -e "rmarkdown::render(input = '42_trajectory_tinga.Rmd', output_file = '42_trajectory_tinga.html')"
-
-singularity exec --bind /mnt/Data/ /home/aurelien/Documents/Audrey/git_scripts/singularity/rpackages_dir/singularity_from_dir_copie.simg Rscript -e "rmarkdown::render(input = '43_trajectory_slingshot.Rmd', output_file = '43_trajectory_slingshot.html')"
-```
+<center>--end--</center>
